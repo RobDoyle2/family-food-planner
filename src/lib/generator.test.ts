@@ -14,7 +14,7 @@ const recipes = RECIPE_SOURCES.map((r) => buildRecipe(r, foods));
 const byId = new Map(recipes.map((r) => [r.id, r]));
 const m = (name: string, x: Partial<Member> = {}): Member => ({ id: name, householdId: 'h', name, age: 40, sex: '', allergies: [], intolerances: [], dietary: [], dislikes: [], nutrition: [], createdAt: '', updatedAt: '', ...x });
 const days = (n: number, ms: Member[]): PlanDay[] =>
-  Array.from({ length: n }, (_, i) => ({ date: addDays('2026-11-02', i), options: [null, null], selected: null, skipped: false, eaters: ms.map((x) => x.id), guests: 0, portions: null, rejected: [] }));
+  Array.from({ length: n }, (_, i) => ({ date: addDays('2026-11-02', i), options: [null, null], selected: null, mode: 'cook' as const, eaters: ms.map((x) => x.id), guests: 0, portions: null, rejected: [] }));
 const ctx = (ms: Member[], prefs: FoodPreferences | null = null): PlanContext => ({ recipes, foods, members: ms, prefs, favourites: new Set(), recent: new Set(), maxMinutes: null });
 const prefs = (status: FoodPreferences['status'], ranking: string[] = [], rankingEnabled = true): FoodPreferences => ({ id: 'h', householdId: 'h', status, ranking, rankingEnabled, updatedAt: '' });
 const suggested = (plan: PlanDay[]) => plan.flatMap((d) => d.options).filter(Boolean).map((id) => byId.get(id!)!);

@@ -81,12 +81,15 @@ async function addMember(page, name, age, allergies = []) {
 
 async function newPlan(page, startDate, days) {
   await page.goto(BASE + '#/planner');
-  const btn = page.getByRole('button', { name: 'New plan' });
-  if (await btn.count()) await btn.click();
+  const more = page.locator('.plan-overview .day-more > summary');
+  if (await more.count()) {
+    await more.click();
+    await page.getByRole('button', { name: '＋ Start a new plan' }).click();
+  }
   await page.getByLabel('Starting day').fill(startDate);
   await page.getByRole('spinbutton', { name: 'Number of days' }).fill(String(days));
-  await page.getByRole('button', { name: `Generate ${days}-day plan` }).click();
-  const confirm = page.getByRole('dialog').getByRole('button', { name: 'Create new plan' });
+  await page.getByRole('button', { name: `Plan ${days} dinners` }).click();
+  const confirm = page.getByRole('dialog').getByRole('button', { name: 'Start new plan' });
   if (await confirm.count()) await confirm.click();
   await page.locator('.day-card').first().waitFor();
 }
@@ -174,13 +177,15 @@ async function newPlan(page, startDate, days) {
     // The 14-day plan crosses a month and the dates are consecutive.
     const db = await readDb(page);
     assert(db.mealPlans[0].days[13].date === '2027-01-17', 'last date correct');
-    // Add and remove a day.
-    await page.getByRole('button', { name: '＋ Add a day' }).click();
+    // Add and remove a day with a custom length.
+    await page.getByRole('button', { name: /Dates & length/ }).click();
+    await page.getByRole('button', { name: 'Other' }).click();
+    await page.getByRole('button', { name: 'Increase Number of days in plan' }).click();
+    await page.locator('.day-card').nth(14).waitFor();
     assert((await page.locator('.day-card').count()) === 15, 'day added');
-    await page.locator('.day-card').last().getByText('⋯ More').click();
-    await page.locator('.day-card').last().getByRole('button', { name: 'Remove day' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Remove day' }).click();
-    assert((await page.locator('.day-card').count()) === 14, 'day removed');
+    await page.getByRole('button', { name: 'Decrease Number of days in plan' }).click();
+    await page.waitForTimeout(200);
+    assert((await page.locator('.day-card').count()) === 14, 'day removed (undecided, so no confirmation needed)');
   });
 
   await step('Changing who eats re-checks safety for that day', async () => {
@@ -189,16 +194,20 @@ async function newPlan(page, startDate, days) {
     const roisin = db.members.find((m) => m.name === 'Róisín');
     // Take Róisín (milk allergy) out of day 1, choose a milk-containing dinner via the library, then add her back.
     const day1 = page.locator('.day-card').nth(0);
-    await day1.getByRole('button', { name: /Róisín/ }).click();
-    await day1.getByText('⋯ More').click();
-    await day1.getByRole('button', { name: '📖 Pick from recipes' }).click();
-    await page.getByLabel('Search recipes').fill('Fish Pie');
-    await page.getByRole('button', { name: /Choose for/ }).first().click();
-    await page.locator('.day-card').first().waitFor();
+    await day1.locator('.people-chip').click();
+    await page.getByRole('dialog').getByRole('button', { name: /Róisín/ }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
+    await day1.locator('.day-more > summary').click();
+    await day1.getByRole('button', { name: '🔍 Search recipes' }).click();
+    await page.getByRole('dialog').getByLabel('Search recipes').fill('Fish Pie');
+    await page.getByRole('dialog').getByRole('button', { name: 'Choose Fish Pie' }).click();
+    await page.getByRole('dialog').waitFor({ state: 'detached' });
     db = await readDb(page);
     assert(db.mealPlans[0].days[0].options.includes('fish-pie'), 'fish pie chosen while Róisín not eating');
-    await page.locator('.day-card').nth(0).getByRole('button', { name: /Róisín/ }).click();
+    await page.locator('.day-card').nth(0).locator('.people-chip').click();
+    await page.getByRole('dialog').getByRole('button', { name: /Róisín/ }).click();
     await page.waitForTimeout(250);
+    await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
     db = await readDb(page);
     const recipes = new Map(db.recipes.map((r) => [r.id, r]));
     const d = db.mealPlans[0].days[0];
@@ -258,12 +267,16 @@ async function newPlan(page, startDate, days) {
   let expected;
   await step('Shopping list maths for a multi-day plan with overlapping ingredients', async () => {
     await newPlan(page, '2026-12-01', 5);
-    for (let i = 0; i < 5; i++) await page.locator('.day-card').nth(i).getByRole('button', { name: 'Choose this' }).first().click();
+    for (let i = 0; i < 5; i++) await page.locator('.day-card').nth(i).getByRole('button', { name: /^Choose / }).first().click();
     // Different portion counts per day.
-    await page.locator('.day-card').nth(1).getByRole('spinbutton', { name: /^Portions on/ }).fill('7');
-    await page.locator('.day-card').nth(3).getByRole('button', { name: /^Increase Guests/ }).click();
-    await page.getByRole('button', { name: '🛒 Build shopping list' }).click();
-    await page.getByRole('heading', { name: 'Shopping List' }).waitFor();
+    await page.locator('.day-card').nth(1).locator('.people-chip').click();
+    await page.getByRole('dialog').getByRole('spinbutton', { name: /^Portions on/ }).fill('7');
+    await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
+    await page.locator('.day-card').nth(3).locator('.people-chip').click();
+    await page.getByRole('dialog').getByRole('button', { name: /^Increase Guests/ }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
+    await page.getByRole('button', { name: '🛒 Shopping list' }).click();
+    await page.getByRole('heading', { name: 'Shopping list' }).waitFor();
     const db = await readDb(page);
     const recipes = new Map(db.recipes.map((r) => [r.id, r]));
     // Independent recalculation.
@@ -300,22 +313,23 @@ async function newPlan(page, startDate, days) {
   });
 
   await step('Already-have ticks persist and the outstanding list is accurate', async () => {
-    const boxes = page.locator('.item input[type=checkbox]');
+    const boxes = page.locator('.shop-row:not(.have)');
     const names = [];
     for (let i = 0; i < 3; i++) {
-      const item = page.locator('.item').first();
-      names.push(await item.locator('.item-name').innerText());
-      await item.getByRole('checkbox').click();
+      const item = page.locator('.shop-row').first();
+      names.push(await item.locator('.shop-name').innerText());
+      await item.click();
       await page.waitForTimeout(120);
     }
     const db = await readDb(page);
     const items = db.shoppingLists[0].items;
     const outstanding = items.filter((i) => !i.have).length;
     assert((await boxes.count()) === outstanding, 'visible rows = outstanding items');
-    assert(Number(await page.locator('.stat', { hasText: 'Still to buy' }).locator('.stat-num').innerText()) === outstanding, 'counter matches');
+    assert(Number(await page.locator('.shop-summary span', { hasText: 'still needed' }).locator('strong').innerText()) === outstanding, 'counter matches');
     assert(names.every((n) => items.find((i) => i.name === n).have), 'ticks saved');
     // Rebuilding from the plan keeps ticks.
-    await page.getByRole('button', { name: /Update from meal plan/ }).click();
+    await page.getByRole('tab', { name: 'Full list' }).click();
+    await page.getByRole('button', { name: /Update from plan/ }).click();
     await page.waitForTimeout(250);
     const after = (await readDb(page)).shoppingLists[0].items;
     assert(names.every((n) => after.find((i) => i.name === n).have), 'ticks kept after rebuild');
@@ -384,7 +398,7 @@ async function newPlan(page, startDate, days) {
     const db = await readDb(page);
     for (const s of Object.keys(snapshot)) assert(JSON.stringify(db[s]) === JSON.stringify(snapshot[s]), `${s} imported exactly`);
     await page.goto(BASE + '#/home');
-    await page.getByRole('heading', { name: 'The Kelly Family' }).waitFor();
+    await page.getByText('The Kelly Family').first().waitFor();
     await page.goto(BASE + '#/shopping');
     await page.locator('.item', { hasText: 'Oat milk' }).waitFor();
     await ctx.close();
@@ -443,23 +457,26 @@ async function newPlan(page, startDate, days) {
     // Shortcuts
     await p.getByRole('button', { name: '5 days' }).tap();
     assert((await days.inputValue()) === '5', 'shortcut 5 days');
-    await p.getByRole('button', { name: 'Generate 5-day plan' }).tap();
+    await p.getByRole('button', { name: 'Plan 5 dinners' }).tap();
     await p.locator('.day-card').first().waitFor();
     assert((await p.locator('.day-card').count()) === 5, '5 days generated');
-    // Guests and portions on a day card.
-    const card = p.locator('.day-card').first();
-    const guests = card.getByRole('spinbutton', { name: /^Guests on/ });
-    const portions = card.getByRole('spinbutton', { name: /^Portions on/ });
-    await card.getByRole('button', { name: /^Increase Guests/ }).tap();
-    await card.getByRole('button', { name: /^Increase Guests/ }).tap();
+    // Guests and portions for one day (in the "who's eating" panel).
+    await p.locator('.day-card').first().locator('.people-chip').tap();
+    const sheet = p.getByRole('dialog');
+    const guests = sheet.getByRole('spinbutton', { name: /^Guests on/ });
+    const portions = sheet.getByRole('spinbutton', { name: /^Portions on/ });
+    await sheet.getByRole('button', { name: /^Increase Guests/ }).tap();
+    await sheet.getByRole('button', { name: /^Increase Guests/ }).tap();
     assert((await guests.inputValue()) === '2' && (await portions.inputValue()) === '3', 'two guests add two portions');
-    await card.getByRole('button', { name: /^Decrease Guests/ }).tap();
+    await sheet.getByRole('button', { name: /^Decrease Guests/ }).tap();
     assert((await guests.inputValue()) === '1', 'guest removed');
-    await card.getByRole('button', { name: /^Increase Portions/ }).tap();
+    await sheet.getByRole('button', { name: /^Increase Portions/ }).tap();
     assert((await portions.inputValue()) === '3', 'portions override');
+    await sheet.getByRole('button', { name: 'Done' }).tap();
     await p.reload();
-    await p.locator('.day-card').first().waitFor();
-    assert((await p.locator('.day-card').first().getByRole('spinbutton', { name: /^Guests on/ }).inputValue()) === '1', 'guests saved after reload');
+    await p.locator('.day-card').first().locator('.people-chip').tap();
+    assert((await p.getByRole('dialog').getByRole('spinbutton', { name: /^Guests on/ }).inputValue()) === '1', 'guests saved after reload');
+    await p.getByRole('dialog').getByRole('button', { name: 'Done' }).tap();
     // Recipe page portions.
     await p.goto(BASE + '#recipe-spaghetti-bolognese');
     const rp = p.getByRole('spinbutton', { name: 'Portions' });

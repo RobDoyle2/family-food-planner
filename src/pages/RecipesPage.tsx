@@ -64,7 +64,7 @@ export default function RecipesPage({ pickDay }: { pickDay?: number }) {
     const options = [...day.options] as typeof day.options;
     const slot = day.selected ?? 0;
     options[slot] = recipeId;
-    await savePlan({ ...plan, days: plan.days.map((d, i) => (i === pickDay ? { ...d, options, selected: slot, skipped: false } : d)) });
+    await savePlan({ ...plan, days: plan.days.map((d, i) => (i === pickDay ? { ...d, options, selected: slot, mode: 'cook' as const } : d)) });
     toast.show(`${r.name} chosen for ${formatDay(day.date)}`);
     go('planner');
   };

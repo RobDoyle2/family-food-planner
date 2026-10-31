@@ -1,7 +1,8 @@
 import type { AppData, StoreName } from '../types';
 
 const DB_NAME = 'family-food-planner';
-const DB_VERSION = 1;
+// 2: adds takeaway places, takeaway categories and saved plans. Existing stores are untouched.
+const DB_VERSION = 2;
 
 export const STORES: StoreName[] = [
   'households',
@@ -14,6 +15,9 @@ export const STORES: StoreName[] = [
   'shoppingLists',
   'favourites',
   'settings',
+  'takeawayPlaces',
+  'takeawayCategories',
+  'savedPlans',
 ];
 
 export class StorageError extends Error {}
@@ -48,7 +52,7 @@ export function openDb(): Promise<IDBDatabase> {
       for (const s of STORES) {
         if (!db.objectStoreNames.contains(s)) {
           const store = db.createObjectStore(s, { keyPath: 'id' });
-          if (s === 'members' || s === 'mealPlans' || s === 'favourites') store.createIndex('householdId', 'householdId');
+          if (['members', 'mealPlans', 'favourites', 'takeawayPlaces', 'savedPlans'].includes(s)) store.createIndex('householdId', 'householdId');
         }
       }
     };

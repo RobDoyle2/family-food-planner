@@ -92,7 +92,7 @@ export function findDuplicates(name: string, foods: Food[], ignoreId?: string): 
 const CATEGORY_KEYWORDS: { category: CategoryId; aisle: Aisle; words: string[] }[] = [
   {
     category: 'protein',
-    aisle: 'meat-fish',
+    aisle: 'meat',
     words: [
       'beef', 'steak', 'mince', 'chicken', 'pork', 'ham', 'bacon', 'rasher', 'sausage', 'chorizo', 'salami', 'lamb', 'mutton',
       'turkey', 'duck', 'goose', 'venison', 'rabbit', 'fish', 'cod', 'hake', 'haddock', 'pollock', 'plaice', 'sole', 'mackerel',
@@ -142,6 +142,8 @@ const CATEGORY_KEYWORDS: { category: CategoryId; aisle: Aisle; words: string[] }
   },
 ];
 
+const FISH_WORDS = ['fish', 'cod', 'hake', 'haddock', 'pollock', 'plaice', 'sole', 'mackerel', 'salmon', 'trout', 'tuna', 'sardine', 'anchov', 'prawn', 'shrimp', 'crab', 'lobster', 'mussel', 'clam', 'oyster', 'scallop', 'squid', 'calamari'];
+
 export interface CategorySuggestion {
   category: CategoryId;
   aisle: Aisle;
@@ -170,12 +172,16 @@ export function suggestCategory(name: string, foods: Food[]): CategorySuggestion
       if (matches && (!hit || kw.length > hit.kw.length)) hit = { group, kw };
     }
   }
-  if (hit) return { category: hit.group.category, aisle: hit.group.aisle, reason: `contains “${hit.kw}”` };
+  if (hit) {
+    const fishy = FISH_WORDS.some((w) => words.some((x) => x.startsWith(w)));
+    const aisle = hit.group.aisle === 'meat' && fishy ? 'fish' : hit.group.aisle;
+    return { category: hit.group.category, aisle, reason: `contains “${hit.kw}”` };
+  }
   return null;
 }
 
 export const DEFAULT_AISLE_FOR_CATEGORY: Record<string, Aisle> = {
-  protein: 'meat-fish',
+  protein: 'meat',
   vegetables: 'fruit-veg',
   carbs: 'dry-goods',
   other: 'other',

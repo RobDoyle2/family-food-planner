@@ -1,4 +1,4 @@
-import type { AllergenId, Aisle, Category, DietId, NutritionPrefId, Unit } from '../types';
+import type { AllergenId, Aisle, Category, DietId, NutritionPrefId, TakeawayCategory, Unit } from '../types';
 
 export const ALLERGENS: { id: AllergenId; label: string; hint: string }[] = [
   { id: 'gluten', label: 'Gluten (cereals)', hint: 'Wheat, barley, rye, oats, spelt' },
@@ -52,12 +52,15 @@ export function sortCategories(list: Category[]): Category[] {
 }
 
 export const AISLES: { id: Aisle; label: string; emoji: string }[] = [
-  { id: 'meat-fish', label: 'Meat and fish', emoji: '🥩' },
   { id: 'fruit-veg', label: 'Fruit and vegetables', emoji: '🥕' },
-  { id: 'dairy', label: 'Dairy', emoji: '🧀' },
+  { id: 'meat', label: 'Meat and poultry', emoji: '🥩' },
+  { id: 'fish', label: 'Fish and seafood', emoji: '🐟' },
+  { id: 'dairy', label: 'Dairy and eggs', emoji: '🧀' },
   { id: 'bakery', label: 'Bakery', emoji: '🍞' },
-  { id: 'dry-goods', label: 'Dry goods', emoji: '🌾' },
+  { id: 'dry-goods', label: 'Dry goods and pasta', emoji: '🌾' },
   { id: 'tinned', label: 'Tinned and packaged goods', emoji: '🥫' },
+  { id: 'frozen', label: 'Frozen foods', emoji: '🧊' },
+  { id: 'sauces', label: 'Sauces, herbs and spices', emoji: '🌿' },
   { id: 'other', label: 'Other', emoji: '🛒' },
 ];
 
@@ -98,6 +101,26 @@ export const COUNTRIES = [
 ];
 
 /** Recipes and catalogue are re-seeded when this number increases. */
-export const SEED_VERSION = 2;
+export const SEED_VERSION = 3;
+
+/** Format of stored data. 2 = takeaways, saved plans, 10 shop sections, day modes. */
+export const DATA_VERSION = 2;
+
+export const TAKEAWAY_CATEGORIES: TakeawayCategory[] = [
+  { id: 'chinese', name: 'Chinese', emoji: '🥡', builtIn: true },
+  { id: 'indian', name: 'Indian', emoji: '🍛', builtIn: true },
+  { id: 'chipper', name: 'Fish and chips / Chipper', emoji: '🍟', builtIn: true },
+  { id: 'pizza', name: 'Pizza', emoji: '🍕', builtIn: true },
+  { id: 'kebab', name: 'Kebab', emoji: '🥙', builtIn: true },
+  { id: 'thai', name: 'Thai', emoji: '🍜', builtIn: true },
+  { id: 'japanese', name: 'Japanese / Sushi', emoji: '🍣', builtIn: true },
+  { id: 'burgers', name: 'Burgers', emoji: '🍔', builtIn: true },
+  { id: 'mexican', name: 'Mexican', emoji: '🌮', builtIn: true },
+  { id: 'fried-chicken', name: 'Fried chicken', emoji: '🍗', builtIn: true },
+  { id: 'lebanese', name: 'Lebanese / Middle Eastern', emoji: '🧆', builtIn: true },
+  { id: 'greek', name: 'Mediterranean / Greek', emoji: '🫒', builtIn: true },
+  { id: 'sandwiches', name: 'Sandwiches and wraps', emoji: '🥪', builtIn: true },
+  { id: 'other', name: 'Other takeaway', emoji: '🛍️', builtIn: true },
+];
 
 export const ADULT_AGE = 18;

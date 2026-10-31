@@ -38,7 +38,8 @@ export interface Category {
   builtIn: boolean;
 }
 
-export type Aisle = 'meat-fish' | 'fruit-veg' | 'dairy' | 'bakery' | 'dry-goods' | 'tinned' | 'other';
+/** Shop sections, in walking order. ("meat-fish" is a legacy value migrated on load.) */
+export type Aisle = 'fruit-veg' | 'meat' | 'fish' | 'dairy' | 'bakery' | 'dry-goods' | 'tinned' | 'frozen' | 'sauces' | 'other';
 
 /** How trustworthy a food's allergen / dietary information is. */
 export type AllergenInfoStatus = 'verified' | 'declared' | 'unknown';
@@ -174,11 +175,24 @@ export interface FoodPreferences {
   updatedAt: string;
 }
 
+/** What happens on a day: cook a recipe, have a takeaway, or nothing planned. */
+export type DayMode = 'cook' | 'takeaway' | 'none';
+
+export interface TakeawayChoice {
+  categoryId: string;
+  /** A saved favourite takeaway place, if one was chosen. */
+  placeId?: string;
+  /** Restaurant or takeaway name typed for this night. */
+  name?: string;
+  note?: string;
+}
+
 export interface PlanDay {
   date: string; // YYYY-MM-DD
   options: [string | null, string | null];
   selected: 0 | 1 | null;
-  skipped: boolean;
+  mode: DayMode;
+  takeaway?: TakeawayChoice;
   eaters: string[]; // member ids
   guests: number;
   /** Manual portion override; null means "one per person eating". */
@@ -228,12 +242,56 @@ export interface ShoppingList {
   updatedAt: string;
 }
 
+/** A saved meal ("My Saved Meals"). */
 export interface Favourite {
   id: string; // `${householdId}:${recipeId}`
   householdId: string;
   recipeId: string;
   addedAt: string;
+  /** "We loved it" — a meal the family particularly enjoyed. */
+  loved?: boolean;
+  note?: string;
 }
+
+export interface TakeawayCategory {
+  id: string;
+  name: string;
+  emoji: string;
+  builtIn: boolean;
+}
+
+/** A favourite takeaway place. */
+export interface TakeawayPlace {
+  id: string;
+  householdId: string;
+  name: string;
+  categoryId: string;
+  address?: string;
+  phone?: string;
+  website?: string;
+  /** Favourite dishes or the usual order. */
+  usualOrder?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SavedPlanDay {
+  mode: DayMode;
+  recipeId?: string;
+  takeaway?: TakeawayChoice;
+}
+
+/** A weekly plan kept as a reusable template. */
+export interface SavedPlan {
+  id: string;
+  householdId: string;
+  name: string;
+  days: SavedPlanDay[];
+  createdAt: string;
+}
+
+export type ShoppingView = 'shop' | 'full';
 
 export interface Settings {
   id: 'app';
@@ -241,6 +299,10 @@ export interface Settings {
   seedVersion: number;
   /** Recipes from the previous plan, gently de-prioritised for variety. */
   recentRecipeIds: string[];
+  /** Shopping list view the user last chose. */
+  shoppingView?: ShoppingView;
+  /** Data format version; older data is migrated on load. */
+  dataVersion?: number;
 }
 
 export interface AppData {
@@ -254,6 +316,9 @@ export interface AppData {
   shoppingLists: ShoppingList[];
   favourites: Favourite[];
   settings: Settings[];
+  takeawayPlaces: TakeawayPlace[];
+  takeawayCategories: TakeawayCategory[];
+  savedPlans: SavedPlan[];
 }
 
 export type StoreName = keyof AppData;

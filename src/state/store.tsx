@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { AppData, Category, Favourite, Food, FoodPreferences, FoodStatus, Household, MealPlan, Member, Recipe, Settings, ShoppingList, StoreName } from '../types';
+import type { AppData, Category, Favourite, Food, FoodPreferences, FoodStatus, Household, MealPlan, Member, Recipe, SavedPlan, Settings, ShoppingList, ShoppingView, StoreName, TakeawayCategory, TakeawayPlace } from '../types';
+import { TAKEAWAY_CATEGORIES } from '../data/constants';
 import * as db from '../lib/db';
 import { seedData, upgradeCatalogue } from '../lib/backup';
+import { migrateData } from '../lib/migrate';
 import { SEED_VERSION } from '../data/constants';
 import { toFoodMap, type FoodMap } from '../lib/foods';
 import { refreshRecipe } from '../lib/recipes';
@@ -22,6 +24,9 @@ const EMPTY: AppData = {
   shoppingLists: [],
   favourites: [],
   settings: [],
+  takeawayPlaces: [],
+  takeawayCategories: [],
+  savedPlans: [],
 };
 
 function applyChanges(data: AppData, changes: Changes): AppData {
@@ -51,6 +56,10 @@ export interface Store {
   plan: MealPlan | null;
   list: ShoppingList | null;
   favourites: Set<string>;
+  savedMeals: Favourite[];
+  takeawayPlaces: TakeawayPlace[];
+  takeawayCategories: TakeawayCategory[];
+  savedPlans: SavedPlan[];
   foodMap: FoodMap;
   recipeMap: Map<string, Recipe>;
   planContext: (maxMinutes?: number | null) => PlanContext;
@@ -71,6 +80,14 @@ export interface Store {
   saveRecipe: (r: Recipe) => Promise<void>;
   restoreRecipe: (id: string) => Promise<void>;
   toggleFavourite: (recipeId: string) => Promise<void>;
+  updateSavedMeal: (f: Favourite) => Promise<void>;
+  saveTakeawayPlace: (p: TakeawayPlace) => Promise<void>;
+  deleteTakeawayPlace: (id: string) => Promise<void>;
+  saveTakeawayCategory: (c: TakeawayCategory) => Promise<void>;
+  deleteTakeawayCategory: (id: string) => Promise<void>;
+  saveSavedPlan: (p: SavedPlan) => Promise<void>;
+  deleteSavedPlan: (id: string) => Promise<void>;
+  setShoppingView: (v: ShoppingView) => Promise<void>;
   saveList: (l: ShoppingList) => Promise<void>;
   replaceAllData: (d: AppData) => Promise<void>;
   resetAll: () => Promise<void>;
@@ -107,6 +124,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           loaded = { ...loaded, ...up, settings: [{ ...settings, seedVersion: SEED_VERSION }] };
           await db.replaceAll(loaded);
         }
+        // Upgrade older data (day modes, shop sections, new stores) and save only what changed.
+        const migrated = migrateData(loaded);
+        loaded = migrated.data;
+        for (const store of migrated.changed) await db.putMany(store, loaded[store] as never);
         if (cancelled) return;
         ref.current = loaded;
         setData(loaded);
@@ -154,6 +175,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const plan = data.mealPlans.find((p) => p.householdId === hid) ?? null;
   const list = data.shoppingLists.find((l) => l.householdId === hid) ?? null;
   const favourites = useMemo(() => new Set(data.favourites.filter((f) => f.householdId === hid).map((f) => f.recipeId)), [data.favourites, hid]);
+  const savedMeals = useMemo(() => data.favourites.filter((f) => f.householdId === hid).sort((a, b) => b.addedAt.localeCompare(a.addedAt)), [data.favourites, hid]);
+  const takeawayPlaces = useMemo(() => data.takeawayPlaces.filter((p) => p.householdId === hid).sort((a, b) => a.name.localeCompare(b.name)), [data.takeawayPlaces, hid]);
+  const takeawayCategories = useMemo(() => [...TAKEAWAY_CATEGORIES.slice(0, -1), ...data.takeawayCategories.filter((c) => !c.builtIn).sort((a, b) => a.name.localeCompare(b.name)), TAKEAWAY_CATEGORIES[TAKEAWAY_CATEGORIES.length - 1]], [data.takeawayCategories]);
+  const savedPlans = useMemo(() => data.savedPlans.filter((p) => p.householdId === hid).sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [data.savedPlans, hid]);
   const foodMap = useMemo(() => toFoodMap(data.foods), [data.foods]);
   const recipeMap = useMemo(() => new Map(data.recipes.map((r) => [r.id, r])), [data.recipes]);
 
@@ -181,6 +206,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     plan,
     list,
     favourites,
+    savedMeals,
+    takeawayPlaces,
+    takeawayCategories,
+    savedPlans,
     foodMap,
     recipeMap,
     planContext: (maxMinutes = null) => ({
@@ -336,6 +365,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const fav: Favourite = { id, householdId: hid, recipeId, addedAt: nowIso() };
         await apply({ favourites: { put: [fav] } });
       }
+    },
+
+    async updateSavedMeal(f) {
+      await apply({ favourites: { put: [f] } });
+    },
+
+    async saveTakeawayPlace(p) {
+      await apply({ takeawayPlaces: { put: [{ ...p, updatedAt: nowIso() }] } });
+    },
+
+    async deleteTakeawayPlace(id) {
+      // Planned nights keep the name they were saved with, so nothing in the plan breaks.
+      await apply({ takeawayPlaces: { del: [id] } });
+    },
+
+    async saveTakeawayCategory(c) {
+      await apply({ takeawayCategories: { put: [c] } });
+    },
+
+    async deleteTakeawayCategory(id) {
+      const { d } = cur();
+      const places = d.takeawayPlaces.filter((p) => p.categoryId === id).map((p) => ({ ...p, categoryId: 'other', updatedAt: nowIso() }));
+      const plans = d.mealPlans
+        .filter((p) => p.days.some((day) => day.takeaway?.categoryId === id))
+        .map((p) => ({ ...p, days: p.days.map((day) => (day.takeaway?.categoryId === id ? { ...day, takeaway: { ...day.takeaway, categoryId: 'other' } } : day)) }));
+      await apply({ takeawayCategories: { del: [id] }, takeawayPlaces: { put: places }, mealPlans: { put: plans } });
+    },
+
+    async saveSavedPlan(p) {
+      await apply({ savedPlans: { put: [p] } });
+    },
+
+    async deleteSavedPlan(id) {
+      await apply({ savedPlans: { del: [id] } });
+    },
+
+    async setShoppingView(v) {
+      const { s } = cur();
+      if (s.shoppingView !== v) await apply({ settings: { put: [{ ...s, shoppingView: v }] } });
     },
 
     async saveList(l) {

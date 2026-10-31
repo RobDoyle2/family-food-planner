@@ -25,10 +25,11 @@ To install it on a phone, the site must be served over **HTTPS** (or from localh
 ### Tests
 
 ```bash
-npm test                # 60 unit tests: allergy safety, generator quality across 7 household types, scaling, shopping list, backup
+npm test                # 74 unit tests: allergy safety, generator quality across 7 household types, plan editing, takeaways, migration, shopping list, backup
 npm run preview &       # then, with Playwright available:
 npm run test:e2e        # 18 end-to-end checks covering the full user journey (desktop, tablet and mobile)
-npm run test:e2e:extended   # 13 QA checks: edits/removals, plan lengths, shopping maths, close/reopen, clean import, invalid imports
+npm run test:e2e:extended   # 14 QA checks: edits/removals, plan lengths, shopping maths, close/reopen, clean import, invalid imports, phone controls
+npm run test:e2e:journeys   # 14 phone-sized journeys: resize plans, change one dinner, saved meals, sharing, takeaway nights, shop mode, upgrade from older data
 ```
 
 `tests/e2e.cjs` uses the `playwright` package. If it isn't installed, run `npm i -D playwright && npx playwright install chromium`.
@@ -42,22 +43,23 @@ The app is published as a private claude.ai artifact. Open its link on your phon
 
 ## Using the app
 
-1. **Home**: create your household (country defaults to Ireland).
-2. **My Family**: add each person's name, age, optional sex, **allergies**, **intolerances**, dietary requirements, disliked foods and (adults only) optional nutritional preferences. You can pick allergies from the 14 EU allergens or choose any specific food. For lactose intolerance, choose *Milk*.
-3. **Food Preferences**: browse or search the catalogue (partial names and aliases work, e.g. "zucch" finds Courgettes). Mark foods **Like**, **Dislike** or **Exclude** (Exclude means never suggest).
-   * **Rank favourites**: drag liked foods into order. The arrow buttons also work, and dragging works with touch and the keyboard. Turn ranking off if you'd rather not rank.
-   * **+ Add food**: add foods that aren't in the catalogue. The app suggests a category, which you can change, and warns about duplicates or near-duplicates. You can also create your own categories.
-4. **Meal Planner**: pick a start day, the number of days (default 7) and an optional maximum cooking time, then select **Generate**.
-   * Every day gets **two alternative dinners**. You can **Choose this**, **↻ Replace** either one, ask for **New suggestions**, **Pick from recipes**, **Swap with…** another day, **Leave unplanned**, add or remove days, or **Regenerate unchosen days**.
-   * Tap names to set who's eating each day, add guests, or override portions.
-   * If too few recipes suit the people eating, the app explains why. It never relaxes allergy, intolerance, diet or exclusion rules.
-5. **Recipes**: 77 family dinners. Open a recipe for scaled ingredients, the method, allergens, and a per-person suitability check. From a recipe you can:
-   * Save it as a favourite (♥).
-   * Add your own photo.
-   * **Customise ingredients**: map your custom foods into a recipe, swap ingredients or change amounts. **Restore original** undoes this.
-6. **Shopping List**: select **🛒 Build shopping list** in the planner. Ingredients from the chosen dinners are scaled to portions, combined and grouped by shop section.
-   * Tick **Already have it** to move an item off the "Still to buy" view. It stays in the full list.
-   * You can add, edit and remove items, and **Print**, **Export** (text or CSV) or **Copy** the list.
+The five main sections are **Home · Plan · Saved · Shopping · Family**. Settings is the ⚙️ in the top bar.
+
+1. **Home**: create your household (country defaults to Ireland). Afterwards, Home shows tonight's dinner, your plan at a glance, shopping progress and your saved meals.
+2. **Family › People**: add each person's name, age, optional sex, **allergies**, **intolerances**, dietary requirements, disliked foods and (adults only) optional nutritional preferences. Allergies and intolerances are strict rules that are never relaxed.
+3. **Family › Food likes & dislikes**: browse or search the catalogue (partial names work, e.g. "zucch" finds Courgettes). Mark foods **Like**, **Dislike** or **Exclude**, rank your favourites, and add your own foods.
+4. **Plan**: choose a start day and 3, 5, 7, 10, 14 or any number of days, then **Plan dinners**. Each day offers two ideas; tap **Choose**.
+   * **Change** on any day: other ideas, search the recipes, pick from your saved meals, or make it a takeaway night. Only that evening changes.
+   * **👥** on a day: who's eating, guests and portions to cook.
+   * **⋯ More** on a day: move the meal to another day, takeaway night, cook instead, leave unplanned.
+   * **Dates & length**: change the start date or number of days without losing anything already planned.
+   * **⋯ More** at the top: share or save this week, start a new plan.
+5. **Takeaway nights**: pick the type (Chinese, Indian, Chipper, Pizza…), optionally the restaurant and your usual order, or one of your favourite takeaways. They're never added to the shopping list. If someone has allergies, you're reminded to check with the restaurant.
+6. **Saved**: your saved meals (search, filter, "we loved it", add to any day, share), your favourite takeaways (with phone, website and usual order) and saved weekly plans you can reuse.
+7. **Shopping**: tap **🛒 Shopping list** in the plan. Ingredients from your chosen dinners are scaled to portions and combined.
+   * **Shop** view is a compact checklist for the supermarket: tap a row to tick it off, with undo.
+   * **Full list** lets you edit quantities and sections, add items, export, copy or print.
+8. **Recipes**: 77 family dinners with scaled ingredients, method, allergens and a per-person suitability check. **Save**, **Share**, customise the ingredients or add your own photo.
 
 ## Backing up your data
 
@@ -78,6 +80,7 @@ Data lives only in this browser on this device.
   * Brand-variable products are marked "check the label".
   * Children can't be given nutritional goals, and there are no weight-loss or calorie-restricted plans.
 * A catalogue of 153 foods across the four required categories, with aliases, allergens, parent groups, shop sections and pack sizes.
+* Flexible planner with takeaway nights, saved meals and weeks, sharing, and a supermarket-ready shopping mode (see CHANGELOG 1.2.0).
 * 77 complete recipes. Each has a description, main protein, ingredients by role with quantities for a stated number of servings, prep and cook times, difficulty, a method, and derived dietary tags, allergens and components. Most are Irish and European family favourites.
 * A **deterministic** selection engine:
   * It scores likes, rankings, dislikes, favourites, adult nutrition preferences and ingredient availability.

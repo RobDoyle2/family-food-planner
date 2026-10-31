@@ -2,13 +2,18 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 // ---------- Toasts ----------
 type ToastKind = 'info' | 'success' | 'error';
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
 interface Toast {
   id: number;
   text: string;
   kind: ToastKind;
+  action?: ToastAction;
 }
 interface ToastApi {
-  show: (text: string, kind?: ToastKind) => void;
+  show: (text: string, kind?: ToastKind, action?: ToastAction) => void;
 }
 const ToastCtx = createContext<ToastApi>({ show: () => {} });
 export const useToast = () => useContext(ToastCtx);
@@ -16,10 +21,16 @@ export const useToast = () => useContext(ToastCtx);
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const next = useRef(1);
-  const show = useCallback((text: string, kind: ToastKind = 'success') => {
+  const show = useCallback((text: string, kind: ToastKind = 'success', action?: ToastAction) => {
     const id = next.current++;
-    setToasts((t) => [...t.slice(-1), { id, text, kind }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), kind === 'error' ? 7000 : 2600);
+    setToasts([{ id, text, kind, action }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), kind === 'error' ? 7000 : action ? 4500 : 2400);
+  }, []);
+  // Opening a dialog clears earlier messages so they never cover its title or close button.
+  useEffect(() => {
+    const clear = () => setToasts([]);
+    window.addEventListener('ffp:dialog-open', clear);
+    return () => window.removeEventListener('ffp:dialog-open', clear);
   }, []);
   const api = useMemo(() => ({ show }), [show]);
   return (
@@ -29,6 +40,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div key={t.id} className={`toast toast-${t.kind}`}>
             <span>{t.text}</span>
+            {t.action && (
+              <button
+                className="toast-action"
+                onClick={() => {
+                  t.action!.onClick();
+                  setToasts((x) => x.filter((y) => y.id !== t.id));
+                }}
+              >
+                {t.action.label}
+              </button>
+            )}
             <button className="icon-btn" aria-label="Dismiss" onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))}>
               ×
             </button>
@@ -91,6 +113,7 @@ export function Modal({ title, onClose, children, small, wide }: { title: string
     };
     document.addEventListener('keydown', onKey);
     document.body.classList.add('modal-open');
+    window.dispatchEvent(new Event('ffp:dialog-open'));
     const first = panel.current?.querySelector<HTMLElement>('[autofocus], input, select, textarea, button:not(.modal-close)');
     first?.focus();
     return () => {

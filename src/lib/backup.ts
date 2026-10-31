@@ -1,13 +1,15 @@
 import type { AppData, Category, Food, Recipe, Settings } from '../types';
 import { STORES } from './db';
+import { migrateData, OPTIONAL_STORES } from './migrate';
 import { BUILT_IN_FOODS } from '../data/foods';
 import { RECIPE_SOURCES } from '../data/recipes';
-import { BUILT_IN_CATEGORIES, SEED_VERSION } from '../data/constants';
+import { BUILT_IN_CATEGORIES, DATA_VERSION, SEED_VERSION } from '../data/constants';
 import { buildRecipe, refreshRecipe } from './recipes';
 import { toFoodMap } from './foods';
 
 export const EXPORT_APP = 'family-food-planner';
-export const EXPORT_VERSION = 1;
+/** 2 adds takeaways and saved plans; version 1 backups are still accepted and upgraded. */
+export const EXPORT_VERSION = 2;
 
 export interface BackupFile {
   app: typeof EXPORT_APP;
@@ -50,6 +52,9 @@ const RULES: Record<keyof AppData, Check[]> = {
   shoppingLists: [req('householdId', isStr, 'text'), req('items', isArr, 'a list')],
   favourites: [req('householdId', isStr, 'text'), req('recipeId', isStr, 'text')],
   settings: [],
+  takeawayPlaces: [req('householdId', isStr, 'text'), req('name', isStr, 'text'), req('categoryId', isStr, 'text')],
+  takeawayCategories: [req('name', isStr, 'text')],
+  savedPlans: [req('householdId', isStr, 'text'), req('name', isStr, 'text'), req('days', isArr, 'a list')],
 };
 
 export interface ValidationResult {
@@ -80,6 +85,7 @@ export function validateBackup(text: string): ValidationResult {
   const data = b.data as Partial<AppData>;
   for (const store of STORES) {
     const list = data[store];
+    if (list === undefined && OPTIONAL_STORES.includes(store)) continue;
     if (!isArr(list)) {
       errors.push(`Section “${store}” is missing or is not a list.`);
       continue;
@@ -101,7 +107,7 @@ export function validateBackup(text: string): ValidationResult {
     });
   }
   if (errors.length) return { ok: false, errors: errors.slice(0, 30).concat(errors.length > 30 ? [`…and ${errors.length - 30} more problems.`] : []) };
-  const full = data as AppData;
+  const full = migrateData(data as AppData).data;
   // Cross-reference: members must belong to a household in the file.
   const hh = new Set(full.households.map((h) => h.id));
   full.members.forEach((m) => {
@@ -119,7 +125,9 @@ export function validateBackup(text: string): ValidationResult {
       `${full.recipes.length} recipe(s)`,
       `${full.mealPlans.length} meal plan(s)`,
       `${full.shoppingLists.reduce((n, l) => n + l.items.length, 0)} shopping item(s)`,
-      `${full.favourites.length} favourite(s)`,
+      `${full.favourites.length} saved meal(s)`,
+      `${full.takeawayPlaces.length} favourite takeaway(s)`,
+      `${full.savedPlans.length} saved weekly plan(s)`,
     ],
   };
 }
@@ -128,7 +136,7 @@ export function validateBackup(text: string): ValidationResult {
 export function seedData(): AppData {
   const foods = BUILT_IN_FOODS.map((f) => ({ ...f }));
   const map = toFoodMap(foods);
-  const settings: Settings = { id: 'app', activeHouseholdId: null, seedVersion: SEED_VERSION, recentRecipeIds: [] };
+  const settings: Settings = { id: 'app', activeHouseholdId: null, seedVersion: SEED_VERSION, recentRecipeIds: [], shoppingView: 'shop', dataVersion: DATA_VERSION };
   return {
     households: [],
     members: [],
@@ -139,6 +147,9 @@ export function seedData(): AppData {
     mealPlans: [],
     shoppingLists: [],
     favourites: [],
+    takeawayPlaces: [],
+    takeawayCategories: [],
+    savedPlans: [],
     settings: [settings],
   };
 }

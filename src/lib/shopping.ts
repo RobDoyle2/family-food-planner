@@ -16,7 +16,7 @@ export interface ScaledIngredient {
 export function selectedMeals(plan: MealPlan, recipes: Map<string, Recipe>) {
   const out: { date: string; recipe: Recipe; portions: number }[] = [];
   for (const d of plan.days) {
-    if (d.skipped || d.selected === null) continue;
+    if (d.mode !== 'cook' || d.selected === null) continue;
     const id = d.options[d.selected];
     const r = id ? recipes.get(id) : undefined;
     if (r) out.push({ date: d.date, recipe: r, portions: portionsFor(d) });

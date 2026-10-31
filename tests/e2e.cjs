@@ -93,7 +93,7 @@ async function addMember(page, { name, age, sex, allergies = [], intolerances = 
   await step('1. Create a household', async () => {
     await page.getByLabel('Household name').fill('The Murphys');
     await page.getByRole('button', { name: 'Create household' }).click();
-    await page.getByRole('heading', { name: 'The Murphys' }).waitFor();
+    await page.getByText('The Murphys', { exact: false }).first().waitFor();
     const db = await readDb(page);
     assert(db.households.length === 1 && db.households[0].country === 'Ireland', 'household with default country Ireland saved');
   });
@@ -218,12 +218,12 @@ async function addMember(page, { name, age, sex, allergies = [], intolerances = 
   await step('8–9. Generate a seven-day plan with two alternatives per day', async () => {
     await page.goto(BASE + '#/planner');
     assert((await page.getByRole('spinbutton', { name: 'Number of days' }).inputValue()) === '7', 'default 7 days');
-    await page.getByRole('button', { name: 'Generate 7-day plan' }).click();
+    await page.getByRole('button', { name: 'Plan 7 dinners' }).click();
     await page.locator('.day-card').first().waitFor();
     assert((await page.locator('.day-card').count()) === 7, '7 day cards');
     for (let i = 0; i < 7; i++) {
-      const n = await page.locator('.day-card').nth(i).locator('.option-card:not(.option-empty)').count();
-      assert(n === 2, `day ${i + 1} has 2 options (got ${n})`);
+      const n = await page.locator('.day-card').nth(i).locator('.idea').count();
+      assert(n === 2, `day ${i + 1} shows 2 ideas (got ${n})`);
     }
     planDb = await readDb(page);
     const p = planDb.mealPlans[0];
@@ -236,41 +236,50 @@ async function addMember(page, { name, age, sex, allergies = [], intolerances = 
     await page.screenshot({ path: path.join(SHOTS, 'desktop-planner.png'), fullPage: false });
   });
 
-  await step('10. Select, replace, swap and skip recipes', async () => {
+  await step('10. Select, replace, move and skip recipes', async () => {
     const day1 = page.locator('.day-card').nth(0);
-    const before = await day1.locator('.option-card h4').nth(1).innerText();
-    await day1.getByRole('button', { name: /^Replace .* with another suggestion/ }).nth(1).click();
+    const before = await day1.locator('.idea strong').allInnerTexts();
+    await day1.getByRole('button', { name: 'More ideas', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: /Show two more ideas/ }).click();
+    const fresh = await page.getByRole('dialog').locator('.recipe-row strong').allInnerTexts();
+    assert(fresh.length === 2 && fresh.every((n) => !before.includes(n)), `two different ideas (${before} → ${fresh})`);
+    await page.getByRole('dialog').getByRole('button', { name: `Choose ${fresh[1]}` }).click();
+    await day1.getByRole('heading', { name: fresh[1] }).waitFor();
+    for (let i = 1; i < 7; i++) await page.locator('.day-card').nth(i).getByRole('button', { name: /^Choose / }).first().click();
+    assert((await page.getByText('7 of 7 days sorted').count()) > 0, 'all 7 sorted');
+    // Move day 1's dinner to day 2 (they swap).
+    const d1 = await page.locator('.day-card').nth(0).locator('.meal-body h4').innerText();
+    const d2 = await page.locator('.day-card').nth(1).locator('.meal-body h4').innerText();
+    await page.locator('.day-card').nth(0).locator('.day-more > summary').click();
+    await page.locator('.day-card').nth(0).getByRole('button', { name: /Move to another day/ }).click();
+    await page.getByRole('dialog').locator('.move-target').first().click();
     await page.waitForTimeout(150);
-    const after = await day1.locator('.option-card h4').nth(1).innerText();
-    assert(before !== after, `replace changed option 2 (${before} → ${after})`);
-    for (let i = 0; i < 7; i++) await page.locator('.day-card').nth(i).getByRole('button', { name: 'Choose this' }).first().click();
-    assert((await page.getByText('7 of 7').count()) > 0, 'all 7 chosen');
-    // Swap day 1 and day 2
-    const d1 = await page.locator('.day-card').nth(0).locator('.option-card.chosen h4').innerText();
-    const d2 = await page.locator('.day-card').nth(1).locator('.option-card.chosen h4').innerText();
-    await page.locator('.day-card').nth(0).getByText('⋯ More').click();
-    await page.locator('.day-card').nth(0).getByLabel('Swap meals with another day').selectOption({ index: 1 });
-    await page.waitForTimeout(150);
-    assert((await page.locator('.day-card').nth(0).locator('.option-card.chosen h4').innerText()) === d2, 'swap moved day 2 meal to day 1');
-    assert((await page.locator('.day-card').nth(1).locator('.option-card.chosen h4').innerText()) === d1, 'swap moved day 1 meal to day 2');
+    assert((await page.locator('.day-card').nth(0).locator('.meal-body h4').innerText()) === d2, 'day 2 meal now on day 1');
+    assert((await page.locator('.day-card').nth(1).locator('.meal-body h4').innerText()) === d1, 'day 1 meal now on day 2');
     // Leave day 7 unplanned, then plan it again.
+    await page.locator('.day-card').nth(6).locator('.day-more > summary').click();
     await page.locator('.day-card').nth(6).getByRole('button', { name: '⊘ Leave unplanned' }).click();
     await page.locator('.day-card').nth(6).getByText('No dinner planned').waitFor();
-    await page.locator('.day-card').nth(6).getByRole('button', { name: '＋ Plan this day' }).click();
-    await page.locator('.day-card').nth(6).getByRole('button', { name: 'Choose this' }).first().click();
+    await page.locator('.day-card').nth(6).getByRole('button', { name: 'Plan a dinner' }).click();
+    await page.locator('.day-card').nth(6).getByRole('heading').nth(1).waitFor();
   });
 
   await step('11. Change portion sizes (planner + recipe scaling)', async () => {
     const day1 = page.locator('.day-card').nth(0);
-    const portions = day1.getByRole('spinbutton', { name: /^Portions on/ });
+    await day1.locator('.people-chip').click();
+    const sheet = page.getByRole('dialog');
+    const portions = sheet.getByRole('spinbutton', { name: /^Portions on/ });
     assert((await portions.inputValue()) === '4', 'default portions = 4 people');
-    await day1.getByRole('button', { name: /^Increase Portions/ }).click();
-    await day1.getByRole('button', { name: /^Increase Portions/ }).click();
+    await sheet.getByRole('button', { name: /^Increase Portions/ }).click();
+    await sheet.getByRole('button', { name: /^Increase Portions/ }).click();
     assert((await portions.inputValue()) === '6', 'portions now 6');
+    await sheet.getByRole('button', { name: 'Done' }).click();
+    assert((await day1.locator('.people-chip').innerText()).includes('6'), 'card shows 6 portions');
     // A guest also adds a portion automatically on another day.
-    const day3 = page.locator('.day-card').nth(2);
-    await day3.getByRole('button', { name: /^Increase Guests/ }).click();
-    assert((await day3.getByRole('spinbutton', { name: /^Portions on/ }).inputValue()) === '5', 'guest adds a portion');
+    await page.locator('.day-card').nth(2).locator('.people-chip').click();
+    await page.getByRole('dialog').getByRole('button', { name: /^Increase Guests/ }).click();
+    assert((await page.getByRole('dialog').getByRole('spinbutton', { name: /^Portions on/ }).inputValue()) === '5', 'guest adds a portion');
+    await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
     // Recipe page scaling
     await page.goto(BASE + '#/recipes/spaghetti-bolognese');
     await page.getByRole('heading', { name: 'Spaghetti Bolognese' }).waitFor();
@@ -286,8 +295,8 @@ async function addMember(page, { name, age, sex, allergies = [], intolerances = 
 
   await step('12–13. Generate a combined shopping list without duplicates', async () => {
     await page.goto(BASE + '#/planner');
-    await page.getByRole('button', { name: '🛒 Build shopping list' }).click();
-    await page.getByRole('heading', { name: 'Shopping List' }).waitFor();
+    await page.getByRole('button', { name: '🛒 Shopping list' }).click();
+    await page.getByRole('heading', { name: 'Shopping list' }).waitFor();
     const db = await readDb(page);
     const items = db.shoppingLists[0].items;
     assert(items.length > 15, 'list has items: ' + items.length);
@@ -295,46 +304,46 @@ async function addMember(page, { name, age, sex, allergies = [], intolerances = 
     assert(new Set(keys).size === keys.length, 'no duplicate entries');
     const multi = items.filter((i) => i.recipes.length > 1);
     assert(multi.length > 3, 'ingredients combined across recipes: ' + multi.map((i) => i.name).join(', '));
-    const sections = await page.locator('.aisle-title').allInnerTexts();
-    assert(sections.some((s) => s.includes('Meat and fish')) && sections.some((s) => s.includes('Fruit and vegetables')), 'grouped by section');
+    const sections = await page.locator('.shop-section-name').allInnerTexts();
+    assert(sections.some((s) => s.includes('Meat and poultry')) && sections.some((s) => s.includes('Fruit and vegetables')), 'grouped by section: ' + sections);
     await page.screenshot({ path: path.join(SHOTS, 'desktop-shopping.png'), fullPage: true });
   });
 
-  await step('14. Tick items as already available', async () => {
-    const stat = async (label) => Number(await page.locator('.stat', { hasText: label }).locator('.stat-num').innerText());
-    const total = await stat('Total ingredients');
-    const toBuy = await stat('Still to buy');
-    const first = page.locator('.item').first();
-    const name = await first.locator('.item-name').innerText();
-    await first.getByRole('checkbox').click();
+  await step('14. Tick items off (still kept in the full list)', async () => {
+    const stat = async (label) => Number(await page.locator('.shop-summary span', { hasText: label }).locator('strong').innerText());
+    const total = await stat('items');
+    const toBuy = await stat('still needed');
+    const first = page.locator('.shop-row').first();
+    const name = await first.locator('.shop-name').innerText();
+    await first.click();
     await page.waitForTimeout(150);
-    assert((await stat('Still to buy')) === toBuy - 1, 'to-buy decreased');
-    assert((await stat('Already have')) === 1, 'have = 1');
-    assert((await stat('Total ingredients')) === total, 'total unchanged');
-    assert((await page.locator('.item-name', { hasText: name }).count()) === 0 || !(await page.locator('.item', { hasText: name }).first().isVisible()), 'hidden from outstanding list');
-    await page.getByRole('tab', { name: /Full list/ }).click();
-    assert(await page.locator('.item.have', { hasText: name }).first().isVisible(), 'still in full list, marked have');
+    assert((await stat('still needed')) === toBuy - 1, 'still-needed decreased');
+    assert((await stat('ticked off')) === 1, 'ticked = 1');
+    assert((await stat('items')) === total, 'total unchanged');
+    assert((await page.locator('.shop-row:not(.have)', { hasText: name }).count()) === 0, 'hidden from outstanding list');
+    await page.getByRole('tab', { name: 'Full list' }).click();
+    assert(await page.locator('.item.have', { hasText: name }).first().isVisible(), 'still in full list, ticked');
   });
 
   await step('15. Add, edit and remove manual shopping items', async () => {
     await page.locator('.add-item').getByLabel('Item', { exact: true }).fill('Kitchen roll');
     await page.locator('.add-item').getByLabel('Amount', { exact: true }).fill('2');
-    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await page.locator('.add-item').getByRole('button', { name: 'Add', exact: true }).click();
     await page.locator('.item', { hasText: 'Kitchen roll' }).waitFor();
     await page.getByRole('button', { name: 'Edit Kitchen roll' }).click();
     await page.getByRole('dialog').getByLabel('Amount').fill('4');
     await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click();
     assert((await page.locator('.item', { hasText: 'Kitchen roll' }).innerText()).includes('4'), 'quantity edited');
     await page.locator('.add-item').getByLabel('Item', { exact: true }).fill('Matches');
-    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await page.locator('.add-item').getByRole('button', { name: 'Add', exact: true }).click();
     await page.getByRole('button', { name: 'Remove Matches' }).click();
     await page.waitForTimeout(100);
     assert((await page.locator('.item', { hasText: 'Matches' }).count()) === 0, 'removed');
     const download = page.waitForEvent('download');
-    await page.getByRole('button', { name: '⬇ Export text' }).click();
+    await page.getByRole('button', { name: '⬇ Text' }).click();
     const d = await download;
     const txt = fs.readFileSync(await d.path(), 'utf8');
-    assert(txt.includes('Kitchen roll') && txt.includes('MEAT AND FISH'), 'text export contains list');
+    assert(txt.includes('Kitchen roll') && txt.includes('MEAT AND POULTRY'), 'text export contains list');
   });
 
   await step('16. Save favourites', async () => {
@@ -348,7 +357,7 @@ async function addMember(page, { name, age, sex, allergies = [], intolerances = 
   await step('17. Refresh the application — data persists', async () => {
     before = await readDb(page);
     await page.reload();
-    await page.getByRole('heading', { name: 'The Murphys' }).waitFor();
+    await page.getByText('The Murphys', { exact: false }).first().waitFor();
     const after = await readDb(page);
     for (const s of ['households', 'members', 'foods', 'preferences', 'mealPlans', 'shoppingLists', 'favourites']) {
       assert(JSON.stringify(after[s]) === JSON.stringify(before[s]), `${s} unchanged after reload`);
@@ -426,7 +435,8 @@ async function addMember(page, { name, age, sex, allergies = [], intolerances = 
     await page.goto(BASE + '#/family');
     await addMember(page, { name: 'Guest Gran', age: 70, diets: ['Vegan', 'Gluten-free'], intolerances: ['Celery'] });
     await page.goto(BASE + '#/planner');
-    await page.getByRole('button', { name: 'New plan' }).click();
+    await page.locator('.plan-overview .day-more > summary').click();
+    await page.getByRole('button', { name: '＋ Start a new plan' }).click();
     const sum = await page.locator('.suitability').innerText();
     assert(/\d+ of \d+/.test(sum), 'suitability summary shown: ' + sum.slice(0, 80));
     await page.locator('.suitability summary').click();

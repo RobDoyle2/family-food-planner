@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Aisle, Quantity, ShoppingItem, ShoppingList, Unit } from '../types';
 import { useStore } from '../state/store';
 import { Modal, go, useConfirm, useToast } from '../state/ui';
@@ -134,13 +134,134 @@ function AddItemForm({ onAdd }: { onAdd: (i: ShoppingItem) => void }) {
   );
 }
 
+// Remembered per device: which sections are collapsed, and whether ticked items are hidden in shop mode.
+function usePersisted<T>(key: string, initial: T): [T, (v: T) => void] {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as T) : initial;
+    } catch {
+      return initial;
+    }
+  });
+  const set = (v: T) => {
+    setValue(v);
+    try {
+      localStorage.setItem(key, JSON.stringify(v));
+    } catch {
+      /* storage unavailable: keep for this session only */
+    }
+  };
+  return [value, set];
+}
+
+/** Compact checklist for walking round the shop. */
+function ShopMode({ items, onToggle }: { items: ShoppingItem[]; onToggle: (i: ShoppingItem) => void }) {
+  const [collapsed, setCollapsed] = usePersisted<string[]>('ffp.shop.collapsed', []);
+  const [hideTicked, setHideTicked] = usePersisted<boolean>('ffp.shop.hideTicked', true);
+  const [showTicked, setShowTicked] = useState(false);
+  const ticked = items.filter((i) => i.have);
+  const toggleSection = (id: string) => setCollapsed(collapsed.includes(id) ? collapsed.filter((x) => x !== id) : [...collapsed, id]);
+
+  return (
+    <div className="shop-mode">
+      <label className="toggle shop-hide">
+        <input type="checkbox" role="switch" checked={hideTicked} onChange={(e) => setHideTicked(e.target.checked)} />
+        <span className="toggle-track" aria-hidden="true">
+          <span className="toggle-thumb" />
+        </span>
+        <span className="toggle-label">Hide ticked items</span>
+      </label>
+      {AISLES.map((a) => {
+        const all = items.filter((i) => i.aisle === a.id);
+        if (!all.length) return null;
+        const left = all.filter((i) => !i.have).length;
+        const rows = hideTicked ? all.filter((i) => !i.have) : all;
+        const open = !collapsed.includes(a.id);
+        if (hideTicked && left === 0) return null;
+        return (
+          <section key={a.id} className={`shop-section ${left === 0 ? 'done' : ''}`}>
+            <h3 className="shop-section-h">
+              <button type="button" className="shop-section-btn" aria-expanded={open} onClick={() => toggleSection(a.id)}>
+                <span aria-hidden="true">{a.emoji}</span>
+                <span className="shop-section-name">{a.label}</span>
+                <span className="shop-section-count">{left === 0 ? '✓ done' : `${left} left`}</span>
+                <span className="chev" aria-hidden="true">
+                  {open ? '▾' : '▸'}
+                </span>
+              </button>
+            </h3>
+            {open && (
+              <ul className="shop-rows">
+                {rows.map((i) => (
+                  <ShopRow key={i.id} item={i} onToggle={onToggle} />
+                ))}
+              </ul>
+            )}
+          </section>
+        );
+      })}
+      {hideTicked && ticked.length > 0 && (
+        <section className="shop-section ticked-section">
+          <h3 className="shop-section-h">
+            <button type="button" className="shop-section-btn" aria-expanded={showTicked} onClick={() => setShowTicked(!showTicked)}>
+              <span aria-hidden="true">✓</span>
+              <span className="shop-section-name">Ticked off</span>
+              <span className="shop-section-count">{ticked.length}</span>
+              <span className="chev" aria-hidden="true">
+                {showTicked ? '▾' : '▸'}
+              </span>
+            </button>
+          </h3>
+          {showTicked && (
+            <ul className="shop-rows">
+              {ticked.map((i) => (
+                <ShopRow key={i.id} item={i} onToggle={onToggle} />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
+function ShopRow({ item, onToggle }: { item: ShoppingItem; onToggle: (i: ShoppingItem) => void }) {
+  const q = itemQuantityText(item);
+  return (
+    <li>
+      <label className={`shop-row ${item.have ? 'have' : ''}`}>
+        <input type="checkbox" className="shop-check" checked={item.have} aria-label={`Tick off ${item.name}`} onChange={() => onToggle(item)} />
+        <span className="shop-check-box" aria-hidden="true">
+          {item.have ? '✓' : ''}
+        </span>
+        <span className="shop-name">{item.name}</span>
+        {q && <span className="shop-qty">{q}</span>}
+      </label>
+    </li>
+  );
+}
+
 export default function ShoppingPage() {
-  const { household, list, plan, saveList, foodMap, recipeMap } = useStore();
+  const { household, list, plan, saveList, foodMap, recipeMap, settings, setShoppingView } = useStore();
   const toast = useToast();
   const confirm = useConfirm();
   const buildList = useBuildShoppingList();
-  const [view, setView] = useState<'buy' | 'all'>('buy');
+  const [fullFilter, setFullFilter] = useState<'buy' | 'all'>('all');
   const [editing, setEditing] = useState<ShoppingItem | null>(null);
+  const [quickName, setQuickName] = useState('');
+  const view = settings.shoppingView ?? 'shop';
+
+  const meals = plan ? selectedMeals(plan, recipeMap) : [];
+  const generatedAt = list?.generatedAt ?? null;
+  const stale = !!plan && !!generatedAt && plan.updatedAt > generatedAt;
+  const hasEdits = !!list?.items.some((i) => i.source === 'plan' && i.edited);
+
+  // Keep the list in step with the plan automatically, unless the user has edited plan items by hand.
+  useEffect(() => {
+    if (stale && !hasEdits && meals.length) buildList().then(() => toast.show('Shopping list updated from your plan', 'info'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stale, hasEdits]);
 
   if (!household) {
     return (
@@ -154,10 +275,22 @@ export default function ShoppingPage() {
   const current: ShoppingList = list ?? { id: household.id, householdId: household.id, planId: null, items: [], generatedAt: null, updatedAt: nowIso() };
   const stats = listStats(current.items);
   const save = (items: ShoppingItem[]) => saveList({ ...current, items: sortItems(items) });
-  const meals = plan ? selectedMeals(plan, recipeMap) : [];
-  const unchosen = plan ? plan.days.filter((d) => !d.skipped && d.selected === null).length : 0;
-  const stale = !!plan && !!current.generatedAt && plan.updatedAt > current.generatedAt;
-  const visible = current.items.filter((i) => view === 'all' || !i.have);
+  const unchosen = plan ? plan.days.filter((d) => d.mode === 'cook' && d.selected === null).length : 0;
+  const takeaways = plan ? plan.days.filter((d) => d.mode === 'takeaway').length : 0;
+  const visibleFull = current.items.filter((i) => fullFilter === 'all' || !i.have);
+
+  const toggle = async (i: ShoppingItem) => {
+    const items = current.items.map((x) => (x.id === i.id ? { ...x, have: !x.have } : x));
+    await save(items);
+    const hidden = view === 'shop' && !i.have && (() => {
+      try {
+        return JSON.parse(localStorage.getItem('ffp.shop.hideTicked') ?? 'true');
+      } catch {
+        return true;
+      }
+    })();
+    if (hidden) toast.show(`${i.name} ticked off`, 'success', { label: 'Undo', onClick: () => save(items.map((x) => (x.id === i.id ? { ...x, have: false } : x))) });
+  };
 
   const exportList = async (filename: string, content: string, type: string) => {
     const result = await downloadFile(filename, content, type);
@@ -167,104 +300,79 @@ export default function ShoppingPage() {
   };
 
   const rebuild = async () => {
-    if (current.items.some((i) => i.source === 'plan' && i.edited) && !(await confirm({ title: 'Rebuild from the meal plan?', message: 'Items from the plan will be recalculated, including ones you edited. Manual items and “already have it” ticks are kept.', confirmLabel: 'Rebuild' }))) return;
+    if (hasEdits && !(await confirm({ title: 'Update from the meal plan?', message: 'Items from the plan will be recalculated, including ones you edited. Your own items and ticks are kept.', confirmLabel: 'Update' }))) return;
     const n = await buildList();
-    toast.show(`List rebuilt: ${plural(n, 'item')}`);
+    toast.show(`List updated: ${plural(n, 'item')}`);
   };
 
   return (
-    <div className="page shopping-page">
-      <PageHeader
-        title="Shopping List"
-        subtitle={meals.length ? `For ${plural(meals.length, 'dinner')}: ${meals.map((m) => m.recipe.name).join(', ')}` : 'Build it from your chosen dinners, or add items yourself.'}
-        actions={
-          <>
-            {plan && (
-              <button className="btn btn-secondary" onClick={rebuild} disabled={meals.length === 0}>
-                ↻ {current.generatedAt ? 'Update from meal plan' : 'Build from meal plan'}
+    <div className={`page shopping-page view-${view}`}>
+      <header className="shop-header">
+        <div className="shop-title-row">
+          <h1>Shopping list</h1>
+          <div className="seg" role="tablist" aria-label="Shopping list view">
+            <button role="tab" aria-selected={view === 'shop'} className={view === 'shop' ? 'active' : ''} onClick={() => setShoppingView('shop')}>
+              Shop
+            </button>
+            <button role="tab" aria-selected={view === 'full'} className={view === 'full' ? 'active' : ''} onClick={() => setShoppingView('full')}>
+              Full list
+            </button>
+          </div>
+        </div>
+        <div className="shop-summary" aria-label="Shopping list summary">
+          <span>
+            <strong>{stats.total}</strong> items
+          </span>
+          <span className="needed">
+            <strong>{stats.toBuy}</strong> still needed
+          </span>
+          <span>
+            <strong>{stats.have}</strong> ticked off
+          </span>
+        </div>
+        {stats.total > 0 && (
+          <div className="progress slim" role="progressbar" aria-valuenow={Math.round((stats.have / stats.total) * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Items ticked off">
+            <div className="progress-fill" style={{ width: `${(stats.have / stats.total) * 100}%` }} />
+          </div>
+        )}
+      </header>
+
+      {meals.length > 0 && (
+        <p className="shop-source muted small no-print">
+          For {plural(meals.length, 'dinner')}
+          {takeaways ? ` · ${plural(takeaways, 'takeaway night')} need nothing from the shop` : ''}
+          {unchosen ? ` · ${plural(unchosen, 'day')} still to choose` : ''}
+          {stale && hasEdits && (
+            <>
+              {' · '}
+              <button className="link-btn" onClick={rebuild}>
+                plan changed — update list
               </button>
-            )}
-          </>
-        }
-      />
-
-      {stale && (
-        <div className="notice no-print" role="status">
-          Your meal plan has changed since this list was built.{' '}
-          <button className="link-btn" onClick={rebuild}>
-            Update the list
-          </button>
-        </div>
+            </>
+          )}
+        </p>
       )}
-      {plan && unchosen > 0 && meals.length > 0 && <p className="hint no-print">{plural(unchosen, 'day')} in the plan still {unchosen === 1 ? 'has' : 'have'} no dinner chosen, so {unchosen === 1 ? 'it isn’t' : 'they aren’t'} included.</p>}
 
-      <section className="stats" aria-label="Shopping list summary">
-        <div className="stat">
-          <span className="stat-num">{stats.total}</span>
-          <span className="stat-label">Total ingredients</span>
-        </div>
-        <div className="stat stat-accent">
-          <span className="stat-num">{stats.toBuy}</span>
-          <span className="stat-label">Still to buy</span>
-        </div>
-        <div className="stat">
-          <span className="stat-num">{stats.have}</span>
-          <span className="stat-label">Already have</span>
-        </div>
-      </section>
-
-      <div className="list-toolbar no-print">
-        <div className="seg" role="tablist" aria-label="List view">
-          <button role="tab" aria-selected={view === 'buy'} className={view === 'buy' ? 'active' : ''} onClick={() => setView('buy')}>
-            Still to buy ({stats.toBuy})
+      {view === 'shop' && (
+        <form
+          className="quick-add no-print"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!quickName.trim()) return;
+            await save([...current.items, newManualItem(quickName, null, 'other')]);
+            toast.show(`${quickName.trim()} added`);
+            setQuickName('');
+          }}
+        >
+          <label htmlFor="quick-add" className="sr-only">
+            Add an item
+          </label>
+          <input id="quick-add" className="input" placeholder="＋ Add an item (e.g. kitchen roll)" value={quickName} onChange={(e) => setQuickName(e.target.value)} />
+          <button type="submit" className="btn btn-primary" disabled={!quickName.trim()}>
+            Add
           </button>
-          <button role="tab" aria-selected={view === 'all'} className={view === 'all' ? 'active' : ''} onClick={() => setView('all')}>
-            Full list ({stats.total})
-          </button>
-        </div>
-        <div className="list-actions">
-          {!isEmbedded && (
-            <button className="btn btn-ghost btn-sm" onClick={() => window.print()} disabled={!stats.total}>
-              🖨 Print
-            </button>
-          )}
-          <button className="btn btn-ghost btn-sm" disabled={!stats.total} onClick={() => exportList(`shopping-list-${todayKey()}.txt`, listToText(current.items, `${household.name} — shopping list`, false), 'text/plain')}>
-            ⬇ Export text
-          </button>
-          <button className="btn btn-ghost btn-sm" disabled={!stats.total} onClick={() => exportList(`shopping-list-${todayKey()}.csv`, listToCsv(current.items), 'text/csv')}>
-            ⬇ Export CSV
-          </button>
-          <button
-            className="btn btn-ghost btn-sm"
-            disabled={!stats.toBuy}
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(listToText(current.items, `${household.name} — shopping list`, true));
-                toast.show('Items still to buy copied');
-              } catch {
-                toast.show('Copying is not available in this browser — use Export instead.', 'error');
-              }
-            }}
-          >
-            ⧉ Copy
-          </button>
-          {stats.total > 0 && (
-            <button
-              className="btn btn-ghost btn-sm danger-text"
-              onClick={async () => {
-                if (await confirm({ title: 'Clear the whole list?', message: 'All items, including ones you added yourself, will be removed.', confirmLabel: 'Clear list', danger: true })) {
-                  await saveList({ ...current, items: [], generatedAt: null });
-                  toast.show('List cleared');
-                }
-              }}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      </div>
-
-      <h2 className="print-only">{household.name} — shopping list</h2>
+        </form>
+      )}
 
       {current.items.length === 0 ? (
         <EmptyState
@@ -273,7 +381,7 @@ export default function ShoppingPage() {
           action={
             plan && meals.length ? (
               <button className="btn btn-primary" onClick={rebuild}>
-                Build from {plural(meals.length, 'chosen dinner')}
+                Make list from {plural(meals.length, 'chosen dinner')}
               </button>
             ) : (
               <button className="btn btn-primary" onClick={() => go('planner')}>
@@ -282,76 +390,141 @@ export default function ShoppingPage() {
             )
           }
         >
-          {plan ? (meals.length ? 'Build the list from your chosen dinners.' : 'Choose dinners in the Meal Planner first.') : 'Create a meal plan and choose dinners, then build the list here.'}
+          {plan ? (meals.length ? 'Make the list from your chosen dinners.' : 'Choose dinners in the Meal Planner first.') : 'Plan your dinners and the list is made for you.'}
         </EmptyState>
-      ) : visible.length === 0 ? (
-        <EmptyState icon="🎉" title="All done!" action={<button className="btn btn-secondary" onClick={() => setView('all')}>Show full list</button>}>
-          You already have everything on the list.
-        </EmptyState>
+      ) : view === 'shop' ? (
+        stats.toBuy === 0 && stats.total > 0 ? (
+          <>
+            <EmptyState icon="🎉" title="All done — everything's ticked off!" />
+            <ShopMode items={current.items} onToggle={toggle} />
+          </>
+        ) : (
+          <ShopMode items={current.items} onToggle={toggle} />
+        )
       ) : (
-        <div className="aisles">
-          {AISLES.map((a) => {
-            const items = visible.filter((i) => i.aisle === a.id);
-            if (!items.length) return null;
-            return (
-              <section key={a.id} className="card aisle" aria-labelledby={`aisle-${a.id}`}>
-                <h3 id={`aisle-${a.id}`} className="aisle-title">
-                  <span aria-hidden="true">{a.emoji}</span> {a.label} <span className="count">{items.length}</span>
-                </h3>
-                <ul className="items">
-                  {items.map((i) => {
-                    const hint = itemHint(i, foodMap);
-                    const q = itemQuantityText(i);
-                    return (
-                      <li key={i.id} className={`item ${i.have ? 'have' : ''}`}>
-                        <div className="item-main">
-                          <span className="item-name">{i.name}</span>
-                          {q && <span className="item-qty">{q}</span>}
-                          {hint && <span className="item-hint">{hint}</span>}
-                          <div className="item-sub">
-                            {i.source === 'manual' ? <span className="badge badge-soft">Added by you</span> : <span className="muted small">{i.recipes.join(' · ')}</span>}
-                            {i.edited && <span className="badge badge-soft">Edited</span>}
-                            {i.labelCheck && <span className="muted small">· check label</span>}
-                          </div>
-                        </div>
-                        <label className="have-toggle">
-                          <input type="checkbox" checked={i.have} aria-label={`Already have ${i.name}`} onChange={() => save(current.items.map((x) => (x.id === i.id ? { ...x, have: !x.have } : x)))} />
-                          <span aria-hidden="true">Already have it</span>
-                        </label>
-                        <div className="item-actions no-print">
-                          <button className="icon-btn" aria-label={`Edit ${i.name}`} title="Edit" onClick={() => setEditing(i)}>
-                            ✎
-                          </button>
-                          <button
-                            className="icon-btn"
-                            aria-label={`Remove ${i.name}`}
-                            title="Remove"
-                            onClick={async () => {
-                              await save(current.items.filter((x) => x.id !== i.id));
-                              toast.show(`${i.name} removed`);
-                            }}
-                          >
-                            🗑
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            );
-          })}
-        </div>
+        <>
+          <div className="list-toolbar no-print">
+            <div className="seg small" role="tablist" aria-label="Which items">
+              <button role="tab" aria-selected={fullFilter === 'all'} className={fullFilter === 'all' ? 'active' : ''} onClick={() => setFullFilter('all')}>
+                Everything ({stats.total})
+              </button>
+              <button role="tab" aria-selected={fullFilter === 'buy'} className={fullFilter === 'buy' ? 'active' : ''} onClick={() => setFullFilter('buy')}>
+                Still needed ({stats.toBuy})
+              </button>
+            </div>
+            <div className="list-actions">
+              {plan && (
+                <button className="btn btn-ghost btn-sm" onClick={rebuild} disabled={meals.length === 0}>
+                  ↻ Update from plan
+                </button>
+              )}
+              {!isEmbedded && (
+                <button className="btn btn-ghost btn-sm" onClick={() => window.print()} disabled={!stats.total}>
+                  🖨 Print
+                </button>
+              )}
+              <button className="btn btn-ghost btn-sm" disabled={!stats.total} onClick={() => exportList(`shopping-list-${todayKey()}.txt`, listToText(current.items, `${household.name} — shopping list`, false), 'text/plain')}>
+                ⬇ Text
+              </button>
+              <button className="btn btn-ghost btn-sm" disabled={!stats.total} onClick={() => exportList(`shopping-list-${todayKey()}.csv`, listToCsv(current.items), 'text/csv')}>
+                ⬇ CSV
+              </button>
+              <button
+                className="btn btn-ghost btn-sm"
+                disabled={!stats.toBuy}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(listToText(current.items, `${household.name} — shopping list`, true));
+                    toast.show('Items still needed copied');
+                  } catch {
+                    toast.show('Copying is not available here — use the text export instead.', 'error');
+                  }
+                }}
+              >
+                ⧉ Copy
+              </button>
+              <button
+                className="btn btn-ghost btn-sm danger-text"
+                onClick={async () => {
+                  if (await confirm({ title: 'Clear the whole list?', message: 'All items, including ones you added yourself, will be removed.', confirmLabel: 'Clear list', danger: true })) {
+                    await saveList({ ...current, items: [], generatedAt: null });
+                    toast.show('List cleared');
+                  }
+                }}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <h2 className="print-only">{household.name} — shopping list</h2>
+          {visibleFull.length === 0 ? (
+            <EmptyState icon="🎉" title="Nothing left to buy" />
+          ) : (
+            <div className="aisles">
+              {AISLES.map((a) => {
+                const items = visibleFull.filter((i) => i.aisle === a.id);
+                if (!items.length) return null;
+                return (
+                  <section key={a.id} className="aisle" aria-labelledby={`aisle-${a.id}`}>
+                    <h3 id={`aisle-${a.id}`} className="aisle-title">
+                      <span aria-hidden="true">{a.emoji}</span> {a.label} <span className="count">{items.length}</span>
+                    </h3>
+                    <ul className="items">
+                      {items.map((i) => {
+                        const hint = itemHint(i, foodMap);
+                        const q = itemQuantityText(i);
+                        return (
+                          <li key={i.id} className={`item ${i.have ? 'have' : ''}`}>
+                            <div className="item-main">
+                              <span className="item-name">{i.name}</span>
+                              {q && <span className="item-qty">{q}</span>}
+                              {hint && <span className="item-hint">{hint}</span>}
+                              <div className="item-sub">
+                                {i.source === 'manual' ? <span className="badge badge-soft">Added by you</span> : <span className="muted small">{i.recipes.join(' · ')}</span>}
+                                {i.edited && <span className="badge badge-soft">Edited</span>}
+                                {i.labelCheck && <span className="muted small">· check label</span>}
+                              </div>
+                            </div>
+                            <label className="have-toggle">
+                              <input type="checkbox" checked={i.have} aria-label={`Tick off ${i.name}`} onChange={() => toggle(i)} />
+                              <span aria-hidden="true">Got it</span>
+                            </label>
+                            <div className="item-actions no-print">
+                              <button className="icon-btn" aria-label={`Edit ${i.name}`} title="Edit" onClick={() => setEditing(i)}>
+                                ✎
+                              </button>
+                              <button
+                                className="icon-btn"
+                                aria-label={`Remove ${i.name}`}
+                                title="Remove"
+                                onClick={async () => {
+                                  const before = current.items;
+                                  await save(current.items.filter((x) => x.id !== i.id));
+                                  toast.show(`${i.name} removed`, 'success', { label: 'Undo', onClick: () => save(before) });
+                                }}
+                              >
+                                🗑
+                              </button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                );
+              })}
+            </div>
+          )}
+          <div className="no-print">
+            <AddItemForm
+              onAdd={async (item) => {
+                await save([...current.items, item]);
+                toast.show(`${item.name} added`);
+              }}
+            />
+          </div>
+        </>
       )}
-
-      <div className="no-print">
-        <AddItemForm
-          onAdd={async (item) => {
-            await save([...current.items, item]);
-            toast.show(`${item.name} added`);
-          }}
-        />
-      </div>
 
       {editing && (
         <ItemEditor

@@ -40,7 +40,7 @@ function days(n: number, members: Member[]): PlanDay[] {
     date: addDays('2026-11-02', i),
     options: [null, null],
     selected: null,
-    skipped: false,
+    mode: 'cook' as const,
     eaters: members.map((m) => m.id),
     guests: 0,
     portions: null,

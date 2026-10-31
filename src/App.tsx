@@ -8,28 +8,59 @@ import RecipesPage from './pages/RecipesPage';
 import RecipeDetailPage from './pages/RecipeDetailPage';
 import ShoppingPage from './pages/ShoppingPage';
 import SettingsPage from './pages/SettingsPage';
+import SavedPage from './pages/SavedPage';
 
 const NAV = [
   { path: 'home', label: 'Home', icon: '🏡' },
-  { path: 'family', label: 'My Family', icon: '👪' },
-  { path: 'foods', label: 'Food Preferences', short: 'Foods', icon: '🥕' },
-  { path: 'planner', label: 'Meal Planner', short: 'Planner', icon: '📅' },
-  { path: 'shopping', label: 'Shopping List', short: 'Shopping', icon: '🛒' },
+  { path: 'planner', label: 'Meal Plan', short: 'Plan', icon: '📅' },
+  { path: 'saved', label: 'Saved', icon: '♡' },
+  { path: 'shopping', label: 'Shopping', icon: '🛒' },
+  { path: 'family', label: 'Family', icon: '👪' },
 ];
+
+/** Family profiles and food preferences sit together: both describe the household. */
+function FamilyTabs({ active }: { active: 'family' | 'foods' }) {
+  return (
+    <nav className="sub-tabs" aria-label="Family sections">
+      <a href={href('family')} className={active === 'family' ? 'active' : ''} aria-current={active === 'family' ? 'page' : undefined}>
+        People
+      </a>
+      <a href={href('foods')} className={active === 'foods' ? 'active' : ''} aria-current={active === 'foods' ? 'page' : undefined}>
+        Food likes &amp; dislikes
+      </a>
+    </nav>
+  );
+}
 
 function Shell() {
   const [route, navigate] = useHashRoute();
   const store = useStore();
   const [section, sub] = route;
-  const active = section === 'recipes' ? 'planner' : section;
+  const active = section === 'recipes' ? 'planner' : section === 'foods' ? 'family' : section === 'takeaways' ? 'saved' : section;
 
   let page;
   switch (section) {
     case 'family':
-      page = <FamilyPage />;
+      page = (
+        <>
+          <FamilyTabs active="family" />
+          <FamilyPage />
+        </>
+      );
       break;
     case 'foods':
-      page = <FoodsPage />;
+      page = (
+        <>
+          <FamilyTabs active="foods" />
+          <FoodsPage />
+        </>
+      );
+      break;
+    case 'saved':
+      page = <SavedPage key="saved" />;
+      break;
+    case 'takeaways':
+      page = <SavedPage key="takeaways" initialTab="takeaways" />;
       break;
     case 'planner':
       page = <PlannerPage />;

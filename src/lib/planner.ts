@@ -184,7 +184,7 @@ export function portionsFor(day: PlanDay): number {
 
 /** The recipe that represents a day for variety purposes. */
 export function chosenRecipeId(day: PlanDay): string | null {
-  if (day.skipped) return null;
+  if (day.mode !== 'cook') return null;
   if (day.selected !== null) return day.options[day.selected];
   return day.options[0];
 }
@@ -226,7 +226,7 @@ function dayScore(e: Evaluation, index: number, st: PickState): number {
   const groups: string[] = [];
   const perishables = new Set<string>();
   st.days.forEach((d, i) => {
-    if (i === index || d.skipped) return;
+    if (i === index || d.mode !== 'cook') return;
     for (const id of d.options) if (id) usedIds.push(id);
     const g = groupOf(d, st.byId);
     if (g) groups.push(g);
@@ -330,20 +330,24 @@ function makeState(days: PlanDay[], ctx: PlanContext, seed: number): PickState {
 }
 
 /**
- * Fills every day that isn't skipped or already chosen with two alternatives.
+ * Fills cooking days with two alternatives.
+ * - keepSelected: days with a chosen dinner are left alone.
+ * - emptyOnly: only days that have no suggestions yet are filled (used when adding days),
+ *   so nothing the family has already seen or chosen changes.
  * Deterministic: identical inputs and seed always give an identical plan.
  */
-export function generateDays(days: PlanDay[], ctx: PlanContext, seed: number, keepSelected = true): PlanDay[] {
+export function generateDays(days: PlanDay[], ctx: PlanContext, seed: number, keepSelected = true, emptyOnly = false): PlanDay[] {
   const out = days.map((d) => ({ ...d, options: [...d.options] as PlanDay['options'] }));
   const st = makeState(out, ctx, seed);
+  const touch = (d: PlanDay) => d.mode === 'cook' && !(keepSelected && d.selected !== null) && !(emptyOnly && (d.options[0] || d.options[1]));
+  const todo = out.map(touch);
   // Clear days being regenerated first so they don't influence each other's variety scoring.
   out.forEach((d, i) => {
-    if (d.skipped || (keepSelected && d.selected !== null)) return;
-    out[i] = { ...d, options: [null, null], selected: null, issue: undefined };
+    if (todo[i]) out[i] = { ...d, options: [null, null], selected: null, issue: undefined };
   });
   st.days = out;
   out.forEach((d, i) => {
-    if (d.skipped || (keepSelected && d.selected !== null)) return;
+    if (!todo[i]) return;
     const pick = pickForDay(i, st, new Set(d.rejected));
     out[i] = { ...d, options: pick.options, selected: null, issue: pick.issue };
   });

@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import type { IngredientRole, Recipe, RecipeIngredient, Unit } from '../types';
 import { useStore } from '../state/store';
 import { go, useConfirm, useToast } from '../state/ui';
-import { EmptyState, FoodPicker, Heart, RecipeImage, Stepper } from '../components/common';
+import { EmptyState, FoodPicker, RecipeImage, Stepper } from '../components/common';
+import { SaveMealButton, ShareButton } from '../components/actions';
 import { analyseIngredients } from '../lib/recipes';
 import { checkRecipeForDay, evaluateRecipe } from '../lib/planner';
 import { formatQuantity, roundRecipeAmount, scaleAmount } from '../lib/units';
@@ -119,7 +120,7 @@ function IngredientEditor({ recipe, onDone }: { recipe: Recipe; onDone: () => vo
 }
 
 export default function RecipeDetailPage({ id }: { id: string }) {
-  const { recipeMap, foodMap, members, favourites, toggleFavourite, planContext, plan, savePlan, restoreRecipe, saveRecipe } = useStore();
+  const { recipeMap, foodMap, members, planContext, plan, savePlan, restoreRecipe, saveRecipe } = useStore();
   const toast = useToast();
   const confirm = useConfirm();
   const recipe = recipeMap.get(id);
@@ -147,7 +148,7 @@ export default function RecipeDetailPage({ id }: { id: string }) {
     const slot = day.selected ?? 0;
     const options = [...day.options] as typeof day.options;
     options[slot] = recipe.id;
-    await savePlan({ ...plan, days: plan.days.map((d, i) => (i === index ? { ...d, options, selected: slot, skipped: false } : d)) });
+    await savePlan({ ...plan, days: plan.days.map((d, i) => (i === index ? { ...d, options, selected: slot, mode: 'cook' as const } : d)) });
     toast.show(`${recipe.name} chosen for ${formatDay(day.date)}`);
   };
 
@@ -159,7 +160,6 @@ export default function RecipeDetailPage({ id }: { id: string }) {
       <section className="recipe-hero card">
         <div className="recipe-hero-media">
           <RecipeImage recipe={recipe} foods={foodMap} size="lg" caption={false} />
-          <Heart on={favourites.has(recipe.id)} onToggle={() => toggleFavourite(recipe.id)} name={recipe.name} />
         </div>
         <div className="recipe-hero-body">
           <p className="eyebrow">{recipe.cuisine}</p>
@@ -201,6 +201,8 @@ export default function RecipeDetailPage({ id }: { id: string }) {
             )}
           </div>
           <div className="hero-actions">
+            <SaveMealButton recipe={recipe} />
+            <ShareButton recipe={recipe} portions={portions} />
             {plan && (
               <>
                 <label className="sr-only" htmlFor="add-day">
