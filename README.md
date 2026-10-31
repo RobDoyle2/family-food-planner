@@ -29,6 +29,7 @@ npm test                # 74 unit tests: allergy safety, generator quality acros
 npm run preview &       # then, with Playwright available:
 npm run test:e2e        # 18 end-to-end checks covering the full user journey (desktop, tablet and mobile)
 npm run test:e2e:extended   # 14 QA checks: edits/removals, plan lengths, shopping maths, close/reopen, clean import, invalid imports, phone controls
+npm run test:e2e:own        # 8 checks for your own recipes: create, edit, plan, shopping list, delete
 npm run test:e2e:journeys   # 14 phone-sized journeys: resize plans, change one dinner, saved meals, sharing, takeaway nights, shop mode, upgrade from older data
 ```
 
@@ -59,7 +60,10 @@ The five main sections are **Home · Plan · Saved · Shopping · Family**. Sett
 7. **Shopping**: tap **🛒 Shopping list** in the plan. Ingredients from your chosen dinners are scaled to portions and combined.
    * **Shop** view is a compact checklist for the supermarket: tap a row to tick it off, with undo.
    * **Full list** lets you edit quantities and sections, add items, export, copy or print.
-8. **Recipes**: 77 family dinners with scaled ingredients, method, allergens and a per-person suitability check. **Save**, **Share**, customise the ingredients or add your own photo.
+8. **Recipes**: 77 family dinners with scaled ingredients, method, allergens and a per-person suitability check. **Save**, **Share**, **🛒 Add ingredients to shopping list**, customise the ingredients or add your own photo.
+9. **Own recipes** (Recipes › Own recipes › **＋ Add your own recipe**): add your family's dinners with ingredients chosen from the food list and a step-by-step method.
+   * The app works out allergens and diets, suggests your recipes in the planner (only when safe), and puts their ingredients on the shopping list.
+   * You can edit or delete them at any time.
 
 ## Backing up your data
 

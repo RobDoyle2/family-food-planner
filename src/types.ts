@@ -131,6 +131,9 @@ export interface Recipe {
   /** Every food id present, including nested components and parent groups. */
   components: string[];
   builtIn: boolean;
+  /** Created by the family (an "Own recipe"). */
+  own?: boolean;
+  createdAt?: string;
   customised?: boolean;
   originalIngredients?: RecipeIngredient[];
   updatedAt?: string;
@@ -233,10 +236,18 @@ export interface ShoppingItem {
   labelCheck?: boolean;
 }
 
+/** A recipe added straight to the shopping list (not via the plan), at a number of portions. */
+export interface ExtraMeal {
+  recipeId: string;
+  portions: number;
+}
+
 export interface ShoppingList {
   id: string; // = householdId
   householdId: string;
   planId: string | null;
+  /** Recipes added from a recipe page; their ingredients are combined with the plan's. */
+  extraMeals?: ExtraMeal[];
   items: ShoppingItem[];
   generatedAt: string | null;
   updatedAt: string;

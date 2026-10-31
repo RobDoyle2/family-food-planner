@@ -1,4 +1,4 @@
-import type { MealPlan, Quantity, Recipe, ShoppingItem, ShoppingList } from '../types';
+import type { ExtraMeal, MealPlan, Quantity, Recipe, ShoppingItem, ShoppingList } from '../types';
 import { AISLES, aisleLabel } from '../data/constants';
 import type { FoodMap } from './foods';
 import { portionsFor } from './planner';
@@ -13,9 +13,9 @@ export interface ScaledIngredient {
 }
 
 /** Selected recipes in a plan with their portion counts. */
-export function selectedMeals(plan: MealPlan, recipes: Map<string, Recipe>) {
+export function selectedMeals(plan: MealPlan | null, recipes: Map<string, Recipe>) {
   const out: { date: string; recipe: Recipe; portions: number }[] = [];
-  for (const d of plan.days) {
+  for (const d of plan?.days ?? []) {
     if (d.mode !== 'cook' || d.selected === null) continue;
     const id = d.options[d.selected];
     const r = id ? recipes.get(id) : undefined;
@@ -28,9 +28,10 @@ export function selectedMeals(plan: MealPlan, recipes: Map<string, Recipe>) {
  * Combines ingredients from every selected dinner. Identical foods merge;
  * quantities add up where units are compatible, otherwise they are listed side by side.
  */
-export function buildShoppingItems(plan: MealPlan, recipes: Map<string, Recipe>, foods: FoodMap): ShoppingItem[] {
+export function buildShoppingItems(plan: MealPlan | null, recipes: Map<string, Recipe>, foods: FoodMap, extras: ExtraMeal[] = []): ShoppingItem[] {
   const byFood = new Map<string, { quantities: Quantity[]; recipes: Set<string> }>();
-  for (const { recipe, portions } of selectedMeals(plan, recipes)) {
+  const extraMeals = extras.map((e) => ({ recipe: recipes.get(e.recipeId), portions: e.portions })).filter((e): e is { recipe: Recipe; portions: number } => !!e.recipe);
+  for (const { recipe, portions } of [...selectedMeals(plan, recipes), ...extraMeals]) {
     for (const ing of recipe.ingredients) {
       const entry = byFood.get(ing.foodId) ?? { quantities: [], recipes: new Set<string>() };
       entry.quantities.push({ amount: scaleAmount(ing.amount, recipe.servings, portions), unit: ing.unit });

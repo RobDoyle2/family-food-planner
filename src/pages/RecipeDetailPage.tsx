@@ -4,6 +4,7 @@ import { useStore } from '../state/store';
 import { go, useConfirm, useToast } from '../state/ui';
 import { EmptyState, FoodPicker, RecipeImage, Stepper } from '../components/common';
 import { SaveMealButton, ShareButton } from '../components/actions';
+import { useAddRecipeToList } from './PlannerPage';
 import { analyseIngredients } from '../lib/recipes';
 import { checkRecipeForDay, evaluateRecipe } from '../lib/planner';
 import { formatQuantity, roundRecipeAmount, scaleAmount } from '../lib/units';
@@ -120,7 +121,8 @@ function IngredientEditor({ recipe, onDone }: { recipe: Recipe; onDone: () => vo
 }
 
 export default function RecipeDetailPage({ id }: { id: string }) {
-  const { recipeMap, foodMap, members, planContext, plan, savePlan, restoreRecipe, saveRecipe } = useStore();
+  const { recipeMap, foodMap, members, planContext, plan, savePlan, restoreRecipe, saveRecipe, deleteRecipe, list } = useStore();
+  const addToList = useAddRecipeToList();
   const toast = useToast();
   const confirm = useConfirm();
   const recipe = recipeMap.get(id);
@@ -203,6 +205,25 @@ export default function RecipeDetailPage({ id }: { id: string }) {
           <div className="hero-actions">
             <SaveMealButton recipe={recipe} />
             <ShareButton recipe={recipe} portions={portions} />
+            {(() => {
+              const onList = list?.extraMeals?.find((e) => e.recipeId === recipe.id);
+              return (
+                <button
+                  type="button"
+                  className={`action-btn ${onList ? 'on' : ''}`}
+                  onClick={async () => {
+                    await addToList(recipe.id, portions);
+                    toast.show(onList ? `Shopping list updated for ${portions} portions` : `Ingredients for ${portions} added to your shopping list`, 'success', {
+                      label: 'Open list',
+                      onClick: () => go('shopping'),
+                    });
+                  }}
+                >
+                  <span aria-hidden="true">🛒</span>
+                  <span>{onList ? (onList.portions === portions ? `On your list (${portions})` : `Update list to ${portions}`) : 'Add ingredients to shopping list'}</span>
+                </button>
+              );
+            })()}
             {plan && (
               <>
                 <label className="sr-only" htmlFor="add-day">
@@ -225,9 +246,37 @@ export default function RecipeDetailPage({ id }: { id: string }) {
                 </select>
               </>
             )}
-            <button className="btn btn-secondary btn-sm" onClick={() => setEditing(true)} disabled={editing}>
-              ✎ Customise ingredients
-            </button>
+            {recipe.own ? (
+              <>
+                <button className="btn btn-secondary btn-sm" onClick={() => go(`recipes/edit/${recipe.id}`)}>
+                  ✎ Edit recipe
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm danger-text"
+                  onClick={async () => {
+                    const planned = plan?.days.some((d) => d.options.includes(recipe.id));
+                    if (
+                      !(await confirm({
+                        title: `Delete ${recipe.name}?`,
+                        message: `Your recipe will be deleted.${planned ? ' It will also be taken out of your meal plan, so those days will need a dinner choosing.' : ''} It will be removed from your saved meals and shopping list too.`,
+                        confirmLabel: 'Delete recipe',
+                        danger: true,
+                      }))
+                    )
+                      return;
+                    await deleteRecipe(recipe.id);
+                    toast.show(`${recipe.name} deleted`);
+                    go('recipes/own');
+                  }}
+                >
+                  Delete recipe
+                </button>
+              </>
+            ) : (
+              <button className="btn btn-secondary btn-sm" onClick={() => setEditing(true)} disabled={editing}>
+                ✎ Customise ingredients
+              </button>
+            )}
             {recipe.customised && (
               <button
                 className="btn btn-ghost btn-sm"

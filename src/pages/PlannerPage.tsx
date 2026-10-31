@@ -16,10 +16,23 @@ import { allergenLabel, dietLabel } from '../data/constants';
 export function useBuildShoppingList() {
   const { plan, list, recipeMap, foodMap, saveList, household } = useStore();
   return async () => {
-    if (!plan || !household) return 0;
-    const items = mergeRegenerated(list, buildShoppingItems(plan, recipeMap, foodMap));
-    await saveList({ id: household.id, householdId: household.id, planId: plan.id, items, generatedAt: nowIso(), updatedAt: nowIso() });
+    if (!household) return 0;
+    const extras = list?.extraMeals ?? [];
+    const items = mergeRegenerated(list, buildShoppingItems(plan, recipeMap, foodMap, extras));
+    await saveList({ id: household.id, householdId: household.id, planId: plan?.id ?? null, extraMeals: extras, items, generatedAt: nowIso(), updatedAt: nowIso() });
     return items.length;
+  };
+}
+
+/** Adds a recipe's ingredients to the shopping list at a number of portions (or removes it with 0). */
+export function useAddRecipeToList() {
+  const { plan, list, recipeMap, foodMap, saveList, household } = useStore();
+  return async (recipeId: string, portions: number) => {
+    if (!household) return;
+    const others = (list?.extraMeals ?? []).filter((e) => e.recipeId !== recipeId);
+    const extras = portions > 0 ? [...others, { recipeId, portions }] : others;
+    const items = mergeRegenerated(list, buildShoppingItems(plan, recipeMap, foodMap, extras));
+    await saveList({ id: household.id, householdId: household.id, planId: plan?.id ?? null, extraMeals: extras, items, generatedAt: nowIso(), updatedAt: nowIso() });
   };
 }
 

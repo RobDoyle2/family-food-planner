@@ -147,6 +147,9 @@ export function Modal({ title, onClose, children, small, wide }: { title: string
 export function href(path: string): string {
   const [a, b, c] = path.split('/');
   if (a === 'recipes' && b === 'pick') return `#pick-${c}`;
+  if (a === 'recipes' && b === 'new') return '#new-recipe';
+  if (a === 'recipes' && b === 'own') return '#own-recipes';
+  if (a === 'recipes' && b === 'edit') return `#edit-recipe-${c}`;
   if (a === 'recipes' && b) return `#recipe-${b}`;
   if (a === 'settings') return '#app-settings';
   return `#${a || 'home'}`;
@@ -158,6 +161,9 @@ export function parseHash(hash: string): string[] {
   if (!h) return ['home'];
   const pick = /^pick-(\d+)$/.exec(h);
   if (pick) return ['recipes', 'pick', pick[1]];
+  if (h === 'new-recipe') return ['recipes', 'new'];
+  if (h === 'own-recipes') return ['recipes', 'own'];
+  if (h.startsWith('edit-recipe-')) return ['recipes', 'edit', h.slice('edit-recipe-'.length)];
   if (h.startsWith('recipe-')) return ['recipes', h.slice('recipe-'.length)];
   if (h === 'app-settings') return ['settings'];
   return [h];

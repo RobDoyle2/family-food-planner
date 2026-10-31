@@ -13,6 +13,43 @@ Each feedback entry records:
 
 ---
 
+## 1.3.0 — Your own recipes
+
+- **Feedback:** "Give me the option to add my own recipes. The ingredients should also be on the list. Beside all recipes add Own Recipes."
+- **Change:**
+  - **Recipes page:** **All recipes** and **Own recipes** tabs side by side, with a **＋ Add your own recipe** button.
+  - **Add your own recipe** form:
+    - Name, short description, a picture (choose one, or add your own photo), type of food.
+    - Serves, preparation and cooking time, difficulty.
+    - Ingredients and the method (one step per line).
+  - **Ingredients come from the food list:**
+    - Each one is checked for allergies and goes on the shopping list.
+    - Each food starts with the unit and amount the catalogue normally uses, so quantities combine with other dinners.
+    - **"Can't find it? ＋ Add a new food"** creates a food on the spot and adds it to the recipe.
+  - **Live allergens and suitability panel:**
+    - Shows what the recipe contains, which diets it suits, and whether each family member can eat it.
+    - A food whose allergens haven't been checked marks the recipe **Needs review**, and it won't be suggested to anyone with allergies, intolerances or diets until that food is checked.
+  - **Unsaved new recipes** are kept as a draft on the device, with a "Start again" option.
+  - **On your own recipe's page:** **✎ Edit recipe** and **Delete recipe**. Deleting asks first, takes it out of the meal plan (that day then needs a dinner choosing), saved meals and shopping list.
+  - **In the planner:**
+    - Own recipes are suggested alongside the built-in ones, always within allergy and diet rules.
+    - They're gently preferred and labelled "Your recipe".
+    - You can choose one for any day via **Change › Search** or **Saved**.
+  - **Shopping list:**
+    - A planned own recipe's ingredients are added and combined like any other dinner.
+    - New **🛒 Add ingredients to shopping list** on every recipe page adds that recipe at the chosen portions without planning it. It shows "On your list (n)".
+    - The list shows "Also on this list: …" with ✕ to take a recipe back off (with Undo).
+    - Ingredients shared with planned dinners stay on one combined line.
+- **Knock-on effects:** none for built-in recipes. "Customise ingredients" is unchanged for them; own recipes use Edit instead.
+- **Data:**
+  - Own recipes are stored with the other recipes, so they're included in backups and kept through catalogue upgrades.
+  - The shopping list gains an optional list of recipes added directly.
+  - No migration needed; existing data is unchanged.
+- **Tested:**
+  - 80 unit tests pass, 6 of them new: allergens and diets worked out from ingredients, never suggested when unsafe, review flag for unchecked foods, default amounts, form checks, and combining on the shopping list.
+  - New phone-sized browser test `tests/e2e-own-recipes.cjs`: 8 / 8 pass, covering create, validation, new food, review flag, edit, plan, shopping list, add-to-list with undo, draft, and delete.
+  - All earlier browser suites still pass.
+
 ## 1.2.0 — Product vision upgrade: flexible planner, saved meals, takeaway nights, shop mode
 
 **Brief:** Great food. Happy families. Dinner sorted. A busy parent should be able to plan the week's dinners and have the shopping list ready in a few minutes.

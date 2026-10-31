@@ -7,6 +7,7 @@ import { migrateData } from '../lib/migrate';
 import { SEED_VERSION } from '../data/constants';
 import { toFoodMap, type FoodMap } from '../lib/foods';
 import { refreshRecipe } from '../lib/recipes';
+import { buildShoppingItems, mergeRegenerated } from '../lib/shopping';
 import type { PlanContext } from '../lib/planner';
 import { nowIso, uid } from '../lib/util';
 import { useToast } from './ui';
@@ -79,6 +80,8 @@ export interface Store {
   deletePlan: () => Promise<void>;
   saveRecipe: (r: Recipe) => Promise<void>;
   restoreRecipe: (id: string) => Promise<void>;
+  /** Deletes an own recipe and removes it from the plan, saved meals and shopping list. */
+  deleteRecipe: (id: string) => Promise<void>;
   toggleFavourite: (recipeId: string) => Promise<void>;
   updateSavedMeal: (f: Favourite) => Promise<void>;
   saveTakeawayPlace: (p: TakeawayPlace) => Promise<void>;
@@ -346,6 +349,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     async saveRecipe(r) {
       const map = toFoodMap(cur().d.foods);
       await apply({ recipes: { put: [refreshRecipe({ ...r, updatedAt: nowIso() }, map)] } });
+    },
+
+    async deleteRecipe(id) {
+      const { d } = cur();
+      const map = toFoodMap(d.foods);
+      const recipes = new Map(d.recipes.filter((r) => r.id !== id).map((r) => [r.id, r]));
+      const plans = d.mealPlans
+        .filter((p) => p.days.some((day) => day.options.includes(id)))
+        .map((p) => ({
+          ...p,
+          updatedAt: nowIso(),
+          days: p.days.map((day) => {
+            if (!day.options.includes(id)) return day;
+            const slot = day.options.indexOf(id);
+            const options = day.options.map((o) => (o === id ? null : o)) as typeof day.options;
+            return { ...day, options, selected: day.selected === slot ? null : day.selected };
+          }),
+        }));
+      const lists = d.shoppingLists
+        .filter((l) => l.extraMeals?.some((e) => e.recipeId === id) || l.items.some((i) => i.source === 'plan'))
+        .map((l) => {
+          const extras = (l.extraMeals ?? []).filter((e) => e.recipeId !== id);
+          const plan = plans.find((p) => p.householdId === l.householdId) ?? d.mealPlans.find((p) => p.householdId === l.householdId) ?? null;
+          return { ...l, extraMeals: extras, items: mergeRegenerated(l, buildShoppingItems(plan, recipes, map, extras)), updatedAt: nowIso() };
+        });
+      await apply({
+        recipes: { del: [id] },
+        favourites: { del: d.favourites.filter((f) => f.recipeId === id).map((f) => f.id) },
+        mealPlans: { put: plans },
+        shoppingLists: { put: lists },
+      });
     },
 
     async restoreRecipe(id) {

@@ -10,7 +10,7 @@ import { FoodImage } from './common';
 const EMOJI_FOR_CATEGORY: Record<string, string> = { protein: '🍖', vegetables: '🥬', carbs: '🌾', other: '🫙' };
 
 /** Add or edit a custom food. New foods start with "unknown" allergen information. */
-export function FoodFormModal({ initial, onClose, onDelete, defaultName = '' }: { initial?: Food; onClose: () => void; onDelete?: () => void; defaultName?: string }) {
+export function FoodFormModal({ initial, onClose, onDelete, onSaved, defaultName = '' }: { initial?: Food; onClose: () => void; onDelete?: () => void; onSaved?: (f: Food) => void; defaultName?: string }) {
   const { data, saveFood, saveCategory } = useStore();
   const toast = useToast();
   const [name, setName] = useState(initial?.name ?? defaultName);
@@ -66,6 +66,7 @@ export function FoodFormModal({ initial, onClose, onDelete, defaultName = '' }: 
       updatedAt: t,
     };
     await saveFood(food);
+    onSaved?.(food);
     toast.show(initial ? `${food.name} updated` : `${food.name} added to ${categories.find((c) => c.id === cat)?.name ?? 'the catalogue'}`);
     onClose();
   };

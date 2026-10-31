@@ -149,6 +149,10 @@ export function evaluateRecipe(recipe: Recipe, eaters: Member[], ctx: PlanContex
   const specialty = recipe.ingredients.filter((i) => ctx.foods.get(i.foodId)?.specialty).length;
   score -= specialty * 1;
 
+  if (recipe.own) {
+    score += 2;
+    highlights.unshift('Your recipe');
+  }
   if (ctx.favourites.has(recipe.id)) {
     score += 3;
     highlights.unshift('Family favourite');

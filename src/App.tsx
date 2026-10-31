@@ -9,6 +9,7 @@ import RecipeDetailPage from './pages/RecipeDetailPage';
 import ShoppingPage from './pages/ShoppingPage';
 import SettingsPage from './pages/SettingsPage';
 import SavedPage from './pages/SavedPage';
+import RecipeEditorPage from './pages/RecipeEditorPage';
 
 const NAV = [
   { path: 'home', label: 'Home', icon: '🏡' },
@@ -66,7 +67,20 @@ function Shell() {
       page = <PlannerPage />;
       break;
     case 'recipes':
-      page = sub === 'pick' ? <RecipesPage key={`pick-${route[2]}`} pickDay={Number(route[2])} /> : sub ? <RecipeDetailPage key={sub} id={sub} /> : <RecipesPage />;
+      page =
+        sub === 'pick' ? (
+          <RecipesPage key={`pick-${route[2]}`} pickDay={Number(route[2])} />
+        ) : sub === 'new' ? (
+          <RecipeEditorPage key="new" />
+        ) : sub === 'edit' ? (
+          <RecipeEditorPage key={`edit-${route[2]}`} id={route[2]} />
+        ) : sub === 'own' ? (
+          <RecipesPage key="own" initialTab="own" />
+        ) : sub ? (
+          <RecipeDetailPage key={sub} id={sub} />
+        ) : (
+          <RecipesPage key="all" />
+        );
       break;
     case 'shopping':
       page = <ShoppingPage />;

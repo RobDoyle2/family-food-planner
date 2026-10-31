@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { Aisle, Quantity, ShoppingItem, ShoppingList, Unit } from '../types';
 import { useStore } from '../state/store';
-import { Modal, go, useConfirm, useToast } from '../state/ui';
+import { Modal, go, href, useConfirm, useToast } from '../state/ui';
 import { EmptyState, PageHeader } from '../components/common';
 import { AISLES, UNITS } from '../data/constants';
 import { itemHint, itemQuantityText, listStats, listToCsv, listToText, newManualItem, selectedMeals, sortItems } from '../lib/shopping';
 import { downloadFile, isEmbedded, nowIso, plural, todayKey } from '../lib/util';
-import { useBuildShoppingList } from './PlannerPage';
+import { useAddRecipeToList, useBuildShoppingList } from './PlannerPage';
 
 function ItemEditor({ item, onSave, onClose }: { item: ShoppingItem; onSave: (i: ShoppingItem) => void; onClose: () => void }) {
   const [name, setName] = useState(item.name);
@@ -247,6 +247,7 @@ export default function ShoppingPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const buildList = useBuildShoppingList();
+  const addToList = useAddRecipeToList();
   const [fullFilter, setFullFilter] = useState<'buy' | 'all'>('all');
   const [editing, setEditing] = useState<ShoppingItem | null>(null);
   const [quickName, setQuickName] = useState('');
@@ -351,6 +352,32 @@ export default function ShoppingPage() {
             </>
           )}
         </p>
+      )}
+
+      {(list?.extraMeals?.length ?? 0) > 0 && (
+        <div className="extra-meals no-print" aria-label="Recipes added to this list">
+          <span className="muted small">Also on this list:</span>
+          {list!.extraMeals!.map((e) => {
+            const r = recipeMap.get(e.recipeId);
+            if (!r) return null;
+            return (
+              <span key={e.recipeId} className="chip chip-good">
+                <a href={href(`recipes/${r.id}`)}>{r.name}</a> ({e.portions})
+                <button
+                  type="button"
+                  className="chip-x"
+                  aria-label={`Take ${r.name} off the shopping list`}
+                  onClick={async () => {
+                    await addToList(e.recipeId, 0);
+                    toast.show(`${r.name}'s ingredients taken off the list`, 'info', { label: 'Undo', onClick: () => addToList(e.recipeId, e.portions) });
+                  }}
+                >
+                  ×
+                </button>
+              </span>
+            );
+          })}
+        </div>
       )}
 
       {view === 'shop' && (
