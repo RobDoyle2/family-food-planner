@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import type { Recipe } from '../types';
 import { useStore } from '../state/store';
-import { NUTRIENT_KEYS, REFERENCE_INTAKE, fmtNutrient, recipeNutrition, type Nutrients } from '../lib/nutrition';
+import { NUTRIENT_KEYS, REFERENCE_INTAKE, fmtNutrient, gramsOf, nutrientsFor, recipeNutrition, type Nutrients } from '../lib/nutrition';
 
 const LABELS: Record<keyof Nutrients, { label: string; unit: string }> = {
   kcal: { label: 'Energy', unit: 'kcal' },
@@ -48,6 +48,44 @@ export function NutritionCard({ recipe, portions }: { recipe: Recipe; portions: 
           </div>
         ))}
       </dl>
+      <details className="nut-breakdown">
+        <summary>Per ingredient (per serving)</summary>
+        <table className="nut-table">
+          <thead>
+            <tr>
+              <th scope="col">Ingredient</th>
+              <th scope="col">kcal</th>
+              <th scope="col">Protein</th>
+              <th scope="col">Carbs</th>
+              <th scope="col">Fat</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recipe.ingredients.map((ing, i) => {
+              const per = nutrientsFor(ing.foodId, foodMap);
+              const g = gramsOf(ing);
+              const name = foodMap.get(ing.foodId)?.name ?? ing.foodId;
+              if (!per || g === null)
+                return (
+                  <tr key={i}>
+                    <th scope="row">{name}</th>
+                    <td colSpan={4} className="muted">no data</td>
+                  </tr>
+                );
+              const f = g / 100 / n.servings;
+              return (
+                <tr key={i}>
+                  <th scope="row">{name}</th>
+                  <td>{Math.round(per.kcal * f)}</td>
+                  <td>{fmtNutrient('protein', per.protein * f)} g</td>
+                  <td>{fmtNutrient('carbs', per.carbs * f)} g</td>
+                  <td>{fmtNutrient('fat', per.fat * f)} g</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </details>
       <p className="hint">
         Estimated from the ingredient quantities using typical values from public food tables (USDA FoodData Central, UK CoFID). Brands, cuts and cooking change the real figures. Bars show a share of an adult's reference intake. This is general information, not medical or dietary advice.
         {n.missing.length > 0 && ` Not included (no data): ${n.missing.join(', ')}.`}

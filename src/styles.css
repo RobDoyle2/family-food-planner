@@ -4748,3 +4748,28 @@ h1 {
     grid-row: auto;
   }
 }
+.nut-breakdown {
+  margin: 6px 0 8px;
+}
+.nut-breakdown summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--sage-700);
+  padding: 6px 0;
+}
+.nut-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.nut-table th,
+.nut-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+}
+.nut-table th[scope='row'],
+.nut-table thead th:first-child {
+  text-align: left;
+  font-weight: 500;
+}

@@ -363,7 +363,7 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     await p.goto(BASE + `#recipe-${id}`);
     const card = p.locator('.nutrition-card');
     await card.getByText('Estimate', { exact: true }).waitFor();
-    for (const n of ['Energy', 'Protein', 'Carbohydrate', 'Fat', 'Fibre', 'Sugars', 'Salt']) await card.getByText(n, { exact: true }).waitFor();
+    for (const n of ['Energy', 'Protein', 'Carbohydrate', 'Fat', 'Fibre', 'Sugars', 'Salt']) await card.locator('.nutrients').getByText(n, { exact: true }).waitFor();
     const per = await card.locator('.nutrient-kcal dd').textContent();
     await card.getByRole('tab', { name: /Whole recipe/ }).tap();
     const whole = await card.locator('.nutrient-kcal dd').textContent();

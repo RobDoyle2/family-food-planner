@@ -48,7 +48,7 @@ Each feedback entry records:
     - Staples to buy are tagged "cupboard". Staples at home are listed as "assumed at home this week". The list updates as you change them.
     - Nothing changes until you set staples up.
   - **Nutrition estimates:**
-    - A card on every recipe, per serving or for the whole recipe: energy, protein, carbohydrate, fat, fibre, saturates, sugars and salt.
+    - A card on every recipe, per serving or for the whole recipe: energy, protein, carbohydrate, fat, fibre, saturates, sugars and salt, plus a per-ingredient breakdown.
     - kcal per serving on planned days and suggestions.
     - Calculated from the actual ingredient quantities, using a documented local table of typical values per 100 g (rounded from USDA FoodData Central and UK CoFID) with unit-to-gram conversions.
     - All 83 recipes are fully covered. Foods without data are listed rather than guessed.
