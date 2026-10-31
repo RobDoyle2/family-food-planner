@@ -4,7 +4,13 @@ import { useStore } from '../state/store';
 import { Modal, go, href, useConfirm, useToast } from '../state/ui';
 import { EmptyState, PageHeader } from '../components/common';
 import { AISLES, UNITS } from '../data/constants';
-import { itemHint, itemQuantityText, listStats, listToCsv, listToText, newManualItem, selectedMeals, sortItems } from '../lib/shopping';
+import { assumedAtHome, itemGroup, itemHint, itemQuantityText, listStats, listToCsv, listToText, newManualItem, selectedMeals, sortItems } from '../lib/shopping';
+import { CupboardSheet } from '../components/cupboard';
+
+const GROUPS = [
+  { id: 'main', title: 'Main shopping items', hint: 'The proteins, sides and vegetables for your meals' },
+  { id: 'extra', title: 'Additional recipe ingredients', hint: 'Everything else the recipes need' },
+] as const;
 import { downloadFile, isEmbedded, nowIso, plural, todayKey } from '../lib/util';
 import { useAddRecipeToList, useBuildShoppingList } from './PlannerPage';
 
@@ -172,17 +178,26 @@ function ShopMode({ items, onToggle }: { items: ShoppingItem[]; onToggle: (i: Sh
         </span>
         <span className="toggle-label">Hide ticked items</span>
       </label>
+      {GROUPS.map((g) => {
+        const inGroup = items.filter((i) => itemGroup(i) === g.id);
+        if (!inGroup.length || (hideTicked && inGroup.every((i) => i.have))) return null;
+        return (
+          <div key={g.id} className={`shop-group shop-group-${g.id}`}>
+            <h2 className="shop-group-h">
+              {g.title} <span className="count">{inGroup.filter((i) => !i.have).length}</span>
+            </h2>
       {AISLES.map((a) => {
-        const all = items.filter((i) => i.aisle === a.id);
+        const all = inGroup.filter((i) => i.aisle === a.id);
         if (!all.length) return null;
         const left = all.filter((i) => !i.have).length;
         const rows = hideTicked ? all.filter((i) => !i.have) : all;
-        const open = !collapsed.includes(a.id);
+        const key = `${g.id}:${a.id}`;
+        const open = !collapsed.includes(key);
         if (hideTicked && left === 0) return null;
         return (
           <section key={a.id} className={`shop-section ${left === 0 ? 'done' : ''}`}>
             <h3 className="shop-section-h">
-              <button type="button" className="shop-section-btn" aria-expanded={open} onClick={() => toggleSection(a.id)}>
+              <button type="button" className="shop-section-btn" aria-expanded={open} onClick={() => toggleSection(key)}>
                 <span aria-hidden="true">{a.emoji}</span>
                 <span className="shop-section-name">{a.label}</span>
                 <span className="shop-section-count">{left === 0 ? '✓ done' : `${left} left`}</span>
@@ -199,6 +214,9 @@ function ShopMode({ items, onToggle }: { items: ShoppingItem[]; onToggle: (i: Sh
               </ul>
             )}
           </section>
+        );
+      })}
+          </div>
         );
       })}
       {hideTicked && ticked.length > 0 && (
@@ -235,7 +253,10 @@ function ShopRow({ item, onToggle }: { item: ShoppingItem; onToggle: (i: Shoppin
         <span className="shop-check-box" aria-hidden="true">
           {item.have ? '✓' : ''}
         </span>
-        <span className="shop-name">{item.name}</span>
+        <span className="shop-name">
+          {item.name}
+          {item.kind === 'cupboard' && <span className="tag-cupboard">cupboard</span>}
+        </span>
         {q && <span className="shop-qty">{q}</span>}
       </label>
     </li>
@@ -251,6 +272,8 @@ export default function ShoppingPage() {
   const [fullFilter, setFullFilter] = useState<'buy' | 'all'>('all');
   const [editing, setEditing] = useState<ShoppingItem | null>(null);
   const [quickName, setQuickName] = useState('');
+  const [cupboard, setCupboard] = useState(false);
+  const { prefs } = useStore();
   const view = settings.shoppingView ?? 'shop';
 
   const meals = plan ? selectedMeals(plan, recipeMap) : [];
@@ -353,6 +376,20 @@ export default function ShoppingPage() {
           )}
         </p>
       )}
+
+      <div className="cupboard-bar no-print">
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCupboard(true)}>
+          🧂 Add cupboard items
+        </button>
+        {(() => {
+          const home = assumedAtHome(plan, recipeMap, prefs?.staples ?? {}, list?.extraMeals ?? []);
+          return home.length ? (
+            <span className="muted small">
+              Assumed at home this week: {home.map((id) => foodMap.get(id)?.name.toLowerCase() ?? id).join(', ')}
+            </span>
+          ) : null;
+        })()}
+      </div>
 
       {(list?.extraMeals?.length ?? 0) > 0 && (
         <div className="extra-meals no-print" aria-label="Recipes added to this list">
@@ -488,12 +525,21 @@ export default function ShoppingPage() {
             <EmptyState icon="🎉" title="Nothing left to buy" />
           ) : (
             <div className="aisles">
+              {GROUPS.map((g) => {
+                const inGroup = visibleFull.filter((i) => itemGroup(i) === g.id);
+                if (!inGroup.length) return null;
+                return (
+                  <div key={g.id} className={`shop-group shop-group-${g.id}`}>
+                    <h2 className="shop-group-h">
+                      {g.title} <span className="count">{inGroup.length}</span>
+                    </h2>
+                    <p className="hint">{g.hint}</p>
               {AISLES.map((a) => {
-                const items = visibleFull.filter((i) => i.aisle === a.id);
+                const items = inGroup.filter((i) => i.aisle === a.id);
                 if (!items.length) return null;
                 return (
-                  <section key={a.id} className="aisle" aria-labelledby={`aisle-${a.id}`}>
-                    <h3 id={`aisle-${a.id}`} className="aisle-title">
+                  <section key={a.id} className="aisle" aria-labelledby={`aisle-${g.id}-${a.id}`}>
+                    <h3 id={`aisle-${g.id}-${a.id}`} className="aisle-title">
                       <span aria-hidden="true">{a.emoji}</span> {a.label} <span className="count">{items.length}</span>
                     </h3>
                     <ul className="items">
@@ -509,6 +555,7 @@ export default function ShoppingPage() {
                               <div className="item-sub">
                                 {i.source === 'manual' ? <span className="badge badge-soft">Added by you</span> : <span className="muted small">{i.recipes.join(' · ')}</span>}
                                 {i.edited && <span className="badge badge-soft">Edited</span>}
+                                {i.kind === 'cupboard' && <span className="badge badge-soft">Cupboard</span>}
                                 {i.labelCheck && <span className="muted small">· check label</span>}
                               </div>
                             </div>
@@ -540,6 +587,9 @@ export default function ShoppingPage() {
                   </section>
                 );
               })}
+                  </div>
+                );
+              })}
             </div>
           )}
           <div className="no-print">
@@ -553,6 +603,7 @@ export default function ShoppingPage() {
         </>
       )}
 
+      {cupboard && <CupboardSheet onClose={() => setCupboard(false)} />}
       {editing && (
         <ItemEditor
           item={editing}

@@ -77,6 +77,8 @@ export interface Food {
   pack?: { size: number; unit: 'g' | 'ml' | 'item' | 'clove'; label: string };
   /** Fresh items that spoil quickly; reusing them across the week reduces waste. */
   perishable?: boolean;
+  /** Nutrition per 100 g from a trusted source, overriding the built-in reference table. */
+  nutrition?: import('./lib/nutrition').Nutrients;
   custom?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -175,7 +177,23 @@ export interface FoodPreferences {
   /** Ordered favourite food ids (most loved first). Only used when rankingEnabled. */
   ranking: string[];
   rankingEnabled: boolean;
+  /** Cupboard staples: how each is handled on shopping lists, and how much is at home. */
+  staples?: Record<string, StapleSetting>;
   updatedAt: string;
+}
+
+/**
+ * have:   usually at home, so left off lists unless marked running low / need to buy
+ * always: added to every shopping list
+ * low:    only added when marked running low / need to buy
+ * never:  never added automatically
+ */
+export type StapleMode = 'have' | 'always' | 'low' | 'never';
+export type StockLevel = 'plenty' | 'low' | 'need';
+
+export interface StapleSetting {
+  mode: StapleMode;
+  stock: StockLevel;
 }
 
 /** What happens on a day: cook a recipe, have a takeaway, or nothing planned. */
@@ -190,12 +208,32 @@ export interface TakeawayChoice {
   note?: string;
 }
 
+/** High-level main food for a day ("Plan your plate"). */
+export type ProteinChoiceId =
+  | 'chicken' | 'beef' | 'pork' | 'lamb' | 'turkey' | 'duck'
+  | 'fish' | 'salmon' | 'tuna' | 'prawns' | 'seafood' | 'eggs'
+  | 'vegetarian' | 'vegan' | 'other';
+
+export type CarbChoiceId = 'potatoes' | 'sweet-potatoes' | 'rice' | 'pasta' | 'noodles' | 'couscous' | 'quinoa' | 'bread' | 'wraps' | 'other';
+
+/** The foods a family chose for a day before picking a recipe. Every part is optional. */
+export interface Plate {
+  protein?: ProteinChoiceId;
+  /** A specific cut or product, e.g. beef-mince or bacon (a food id). */
+  proteinFood?: string;
+  carb?: CarbChoiceId;
+  /** Vegetable food ids. */
+  veg: string[];
+}
+
 export interface PlanDay {
   date: string; // YYYY-MM-DD
   options: [string | null, string | null];
   selected: 0 | 1 | null;
   mode: DayMode;
   takeaway?: TakeawayChoice;
+  /** Foods chosen first ("Plan your plate"); recipes are then suggested to match. */
+  plate?: Plate;
   eaters: string[]; // member ids
   guests: number;
   /** Manual portion override; null means "one per person eating". */
@@ -209,6 +247,8 @@ export interface MealPlan {
   id: string;
   householdId: string;
   startDate: string;
+  /** Vegetables the family would like to use across the week. */
+  weekVeg?: string[];
   seed: number;
   maxMinutes: number | null;
   days: PlanDay[];
@@ -231,6 +271,8 @@ export interface ShoppingItem {
   quantities: Quantity[];
   have: boolean;
   source: 'plan' | 'manual';
+  /** main = the proteins, sides and vegetables chosen for meals; extra = supporting ingredients; cupboard = staples. */
+  kind?: 'main' | 'extra' | 'cupboard';
   recipes: string[];
   edited?: boolean;
   labelCheck?: boolean;
@@ -289,6 +331,7 @@ export interface TakeawayPlace {
 
 export interface SavedPlanDay {
   mode: DayMode;
+  plate?: Plate;
   recipeId?: string;
   takeaway?: TakeawayChoice;
 }

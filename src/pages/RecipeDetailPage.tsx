@@ -5,6 +5,7 @@ import { go, useConfirm, useToast } from '../state/ui';
 import { EmptyState, FoodPicker, RecipeImage, Stepper } from '../components/common';
 import { SaveMealButton, ShareButton } from '../components/actions';
 import { useAddRecipeToList } from './PlannerPage';
+import { NutritionCard } from '../components/nutrition';
 import { analyseIngredients } from '../lib/recipes';
 import { checkRecipeForDay, evaluateRecipe } from '../lib/planner';
 import { formatQuantity, roundRecipeAmount, scaleAmount } from '../lib/units';
@@ -392,6 +393,7 @@ export default function RecipeDetailPage({ id }: { id: string }) {
           </ol>
           {portions !== recipe.servings && <p className="hint">Cooking times are for the original {recipe.servings} servings — larger batches may need a bigger dish or a little longer.</p>}
         </section>
+        <NutritionCard recipe={recipe} portions={portions} />
       </div>
     </div>
   );

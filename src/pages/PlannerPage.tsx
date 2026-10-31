@@ -11,14 +11,17 @@ import { addDays, formatDay, nowIso, plural, todayKey, uid } from '../lib/util';
 import { buildShoppingItems, mergeRegenerated } from '../lib/shopping';
 import { totalMinutes } from '../lib/recipes';
 import { shareText } from '../lib/share';
+import { PlateChips, PlateSheet, useWriteRecipeWithFoods } from '../components/plate';
+import { plateFit, plateIsEmpty, plateLabel } from '../lib/plate';
+import { recipeNutrition } from '../lib/nutrition';
 import { allergenLabel, dietLabel } from '../data/constants';
 
 export function useBuildShoppingList() {
-  const { plan, list, recipeMap, foodMap, saveList, household } = useStore();
+  const { plan, list, recipeMap, foodMap, saveList, household, prefs } = useStore();
   return async () => {
     if (!household) return 0;
     const extras = list?.extraMeals ?? [];
-    const items = mergeRegenerated(list, buildShoppingItems(plan, recipeMap, foodMap, extras));
+    const items = mergeRegenerated(list, buildShoppingItems(plan, recipeMap, foodMap, extras, { staples: prefs?.staples }));
     await saveList({ id: household.id, householdId: household.id, planId: plan?.id ?? null, extraMeals: extras, items, generatedAt: nowIso(), updatedAt: nowIso() });
     return items.length;
   };
@@ -26,12 +29,12 @@ export function useBuildShoppingList() {
 
 /** Adds a recipe's ingredients to the shopping list at a number of portions (or removes it with 0). */
 export function useAddRecipeToList() {
-  const { plan, list, recipeMap, foodMap, saveList, household } = useStore();
+  const { plan, list, recipeMap, foodMap, saveList, household, prefs } = useStore();
   return async (recipeId: string, portions: number) => {
     if (!household) return;
     const others = (list?.extraMeals ?? []).filter((e) => e.recipeId !== recipeId);
     const extras = portions > 0 ? [...others, { recipeId, portions }] : others;
-    const items = mergeRegenerated(list, buildShoppingItems(plan, recipeMap, foodMap, extras));
+    const items = mergeRegenerated(list, buildShoppingItems(plan, recipeMap, foodMap, extras, { staples: prefs?.staples }));
     await saveList({ id: household.id, householdId: household.id, planId: plan?.id ?? null, extraMeals: extras, items, generatedAt: nowIso(), updatedAt: nowIso() });
   };
 }
@@ -276,6 +279,7 @@ function ChangeDinnerSheet({ plan, index, initialTab, onClose }: { plan: MealPla
   const [rejected, setRejected] = useState<string[]>(day.rejected);
   const [q, setQ] = useState('');
   const dayName = formatDay(day.date, { weekday: 'long' });
+  const writeOwn = useWriteRecipeWithFoods();
 
   const choose = async (r: Recipe) => {
     // Keep a sensible alternative alongside the choice when it came from the ideas list.
@@ -323,7 +327,13 @@ function ChangeDinnerSheet({ plan, index, initialTab, onClose }: { plan: MealPla
 
       {tab === 'ideas' && (
         <div>
-          <p className="muted small">Suggested for the {plural(eaters.length + day.guests, 'person', 'people')} eating, respecting everyone's allergies and diets.</p>
+          {!plateIsEmpty(day.plate) ? (
+            <p className="based-on">
+              <strong>Based on your foods:</strong> {plateLabel(day.plate, foodMap)}. Safe for the {plural(eaters.length + day.guests, 'person', 'people')} eating.
+            </p>
+          ) : (
+            <p className="muted small">Suggested for the {plural(eaters.length + day.guests, 'person', 'people')} eating, respecting everyone's allergies and diets.</p>
+          )}
           {ideas.length === 0 ? (
             <p className="issue">{day.issue ?? 'No suggestions yet.'}</p>
           ) : (
@@ -333,9 +343,16 @@ function ChangeDinnerSheet({ plan, index, initialTab, onClose }: { plan: MealPla
               ))}
             </ul>
           )}
-          <button type="button" className="btn btn-secondary" onClick={moreIdeas}>
-            ↻ Show two more ideas
-          </button>
+          <div className="sheet-row-actions">
+            <button type="button" className="btn btn-secondary" onClick={moreIdeas}>
+              ↻ {plateIsEmpty(day.plate) ? 'Show two more ideas' : `New recipe for ${dayName}`}
+            </button>
+            {!plateIsEmpty(day.plate) && (
+              <button type="button" className="btn btn-ghost" onClick={() => writeOwn(day.plate!, portionsFor(day))}>
+                ✎ Write a recipe with these foods
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -512,7 +529,7 @@ function MoveSheet({ plan, index, onClose }: { plan: MealPlan; index: number; on
 
 // ---------------------------------------------------------------- Day card
 
-type SheetState = { kind: 'change'; tab: SheetTab } | { kind: 'people' } | { kind: 'move' } | null;
+type SheetState = { kind: 'change'; tab: SheetTab } | { kind: 'people' } | { kind: 'move' } | { kind: 'plate' } | null;
 
 function DayCard({ plan, index }: { plan: MealPlan; index: number }) {
   const { recipeMap, planContext, foodMap, savedMeals, toggleFavourite, updateSavedMeal, favourites } = useStore();
@@ -555,6 +572,11 @@ function DayCard({ plan, index }: { plan: MealPlan; index: number }) {
         {day.mode !== 'cook' && (
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => update(setDayMode(plan, index, 'cook', ctx), `Cooking on ${dayName}`)}>
             🍳 Cook a dinner instead
+          </button>
+        )}
+        {day.mode === 'cook' && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSheet({ kind: 'plate' })}>
+            🍽 {plateIsEmpty(day.plate) ? 'Choose foods for this day' : 'Edit foods'}
           </button>
         )}
         {day.mode === 'cook' && (
@@ -610,6 +632,26 @@ function DayCard({ plan, index }: { plan: MealPlan; index: number }) {
         </button>
       </header>
 
+      {day.mode === 'cook' && !plateIsEmpty(day.plate) && (
+        <div className="day-plate">
+          <PlateChips plate={day.plate} />
+          <button type="button" className="link-btn" onClick={() => setSheet({ kind: 'plate' })} aria-label={`Edit foods for ${dayName}`}>
+            Edit foods
+          </button>
+        </div>
+      )}
+      {day.mode === 'cook' && chosen && day.plate && (() => {
+        const fit = plateFit(day.plate, chosen, foodMap);
+        return fit.protein && fit.carb ? null : (
+          <p className="notice small-notice">
+            {chosen.name} doesn't use the foods picked for {dayName}.{' '}
+            <button type="button" className="link-btn" onClick={() => setSheet({ kind: 'change', tab: 'ideas' })}>
+              See matching recipes
+            </button>
+          </p>
+        );
+      })()}
+
       {day.mode === 'cook' && chosen && (
         <div className="meal">
           <RecipeLink id={chosen.id} className="meal-media">
@@ -621,7 +663,7 @@ function DayCard({ plan, index }: { plan: MealPlan; index: number }) {
             </h4>
             <p className="meal-desc">{chosen.description}</p>
             <p className="meal-meta">
-              ⏱ {chosen.prepMinutes} + {chosen.cookMinutes} min · {plural(portions, 'portion')}
+              ⏱ {chosen.prepMinutes} + {chosen.cookMinutes} min · {plural(portions, 'portion')} · ~{Math.round(recipeNutrition(chosen, foodMap).perServing.kcal / 10) * 10} kcal each
               {chosen.dietaryTags.includes('vegetarian') ? ' · Vegetarian' : ''}
             </p>
           </div>
@@ -655,7 +697,14 @@ function DayCard({ plan, index }: { plan: MealPlan; index: number }) {
               ))}
             </ul>
           ) : (
-            <p className="issue">{day.issue ?? 'No suggestions yet.'}</p>
+            <div>
+              <p className="issue">{day.issue ?? 'No ideas yet for this day.'}</p>
+              {!day.issue && (
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => update({ ...plan, days: plan.days.map((d, i) => (i === index ? regenerateDay(plan, index, ctx).day : d)) }, `Ideas for ${dayName}${day.plate ? ' using your foods' : ''}`)}>
+                  ✨ Find recipes for {dayName}
+                </button>
+              )}
+            </div>
           )}
           {day.issue && ideas.length > 0 && <p className="issue">{day.issue}</p>}
         </div>
@@ -712,6 +761,7 @@ function DayCard({ plan, index }: { plan: MealPlan; index: number }) {
       {sheet?.kind === 'change' && <ChangeDinnerSheet plan={plan} index={index} initialTab={sheet.tab} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'people' && <PeopleSheet plan={plan} index={index} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'move' && <MoveSheet plan={plan} index={index} onClose={() => setSheet(null)} />}
+      {sheet?.kind === 'plate' && <PlateSheet plan={plan} index={index} onSave={(next, msg) => update(next, msg)} onClose={() => setSheet(null)} />}
     </article>
   );
 }
@@ -833,6 +883,23 @@ export default function PlannerPage() {
             )
           }
         />
+        <section className="card build-cta" aria-labelledby="build-cta-h">
+          <div className="build-cta-art" aria-hidden="true">
+            🐔 🍚 🥦
+          </div>
+          <div>
+            <h2 id="build-cta-h" className="card-title">
+              Build your week — plan your plate
+            </h2>
+            <p className="muted">Choose the main food, side and vegetables for each day, then we find recipes that use them. Every choice is optional.</p>
+            <button className="btn btn-primary btn-lg" onClick={() => go('build')}>
+              🍽 Build your week
+            </button>
+          </div>
+        </section>
+        <p className="or-divider">
+          <span>or let us suggest dinners straight away</span>
+        </p>
         <CreatePlanForm onCreated={() => setCreating(false)} />
       </div>
     );
@@ -897,6 +964,10 @@ export default function PlannerPage() {
             }}
           >
             🛒 Shopping list
+          </button>
+          <button className="action-btn" onClick={() => go('build')}>
+            <span aria-hidden="true">🍽</span>
+            <span>Plan your plates</span>
           </button>
           <button className={`action-btn ${editingPeriod ? 'on' : ''}`} aria-expanded={editingPeriod} onClick={() => setEditingPeriod(!editingPeriod)}>
             <span aria-hidden="true">✎</span>

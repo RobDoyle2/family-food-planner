@@ -2,6 +2,7 @@ import type { AllergenId, FoodPreferences, MealPlan, Member, PlanDay, Recipe, Re
 import { allergenLabel, dietLabel, ADULT_AGE } from '../data/constants';
 import { analyseIngredients, totalMinutes, type RecipeAnalysis } from './recipes';
 import type { FoodMap } from './foods';
+import { carbChoice, carbMatches, plateBonus, proteinMatches } from './plate';
 
 export interface PlanContext {
   recipes: Recipe[];
@@ -11,6 +12,8 @@ export interface PlanContext {
   favourites: Set<string>;
   recent: Set<string>;
   maxMinutes: number | null;
+  /** Vegetables the family wants to use this week (soft preference). */
+  weekVeg?: string[];
 }
 
 export type BlockKind = 'allergy' | 'intolerance' | 'diet' | 'excluded' | 'review' | 'time';
@@ -247,6 +250,8 @@ function dayScore(e: Evaluation, index: number, st: PickState): number {
   // Reuse fresh ingredients bought for other dinners this week to reduce waste.
   const shared = r.ingredients.filter((i) => perishables.has(i.foodId)).length;
   s += Math.min(shared, 3) * 0.8;
+  // Foods the family chose for this day ("Plan your plate").
+  s += plateBonus(st.days[index].plate, st.ctx.weekVeg ?? [], r, st.ctx.foods);
   s += hash01(`${st.seed}|${st.days[index].date}|${r.id}`) * 2.5;
   return s;
 }
@@ -256,15 +261,39 @@ export interface DayPick {
   issue?: string;
 }
 
-function rank(index: number, st: PickState, exclude: Set<string>): { evals: Evaluation[]; ok: Evaluation[] } {
-  const eaters = eatersFor(st.days[index], st.ctx.members);
+function rank(index: number, st: PickState, exclude: Set<string>): { evals: Evaluation[]; ok: Evaluation[]; note?: string; plateMatched: boolean } {
+  const day = st.days[index];
+  const eaters = eatersFor(day, st.ctx.members);
   const evals = st.ctx.recipes.map((r) => evaluateRecipe(r, eaters, st.ctx, st.cache));
-  const ok = evals
+  let ok = evals
     .filter((e) => e.ok && !exclude.has(e.recipe.id))
     .map((e) => ({ e, s: dayScore(e, index, st) }))
     .sort((a, b) => b.s - a.s || a.e.recipe.id.localeCompare(b.e.recipe.id))
     .map((x) => x.e);
-  return { evals, ok };
+  // A chosen main food is a requirement; if nothing safe matches, say so and offer other safe ideas.
+  const plate = day.plate;
+  let note: string | undefined;
+  let plateMatched = false;
+  if (plate?.protein && plate.protein !== 'other') {
+    const label = plate.proteinFood ? st.ctx.foods.get(plate.proteinFood)?.name.toLowerCase() ?? plate.protein : plate.protein;
+    const matching = ok.filter((e) => proteinMatches(plate.protein!, e.recipe, st.ctx.foods, plate.proteinFood));
+    if (matching.length) {
+      ok = matching;
+      plateMatched = true;
+    } else {
+      const anyInCatalogue = st.ctx.recipes.some((r) => proteinMatches(plate.protein!, r, st.ctx.foods, plate.proteinFood));
+      const unsafe = evals.filter((e) => !e.ok && proteinMatches(plate.protein!, e.recipe, st.ctx.foods, plate.proteinFood));
+      const why = unsafe.length ? ` (${explainExclusions(unsafe).slice(0, 2).join('; ')})` : '';
+      note = anyInCatalogue
+        ? `No ${label} recipe suits everyone eating this day${why}, so other safe ideas are shown. Allergy and diet rules were not relaxed.`
+        : `There's no ${label} recipe in the catalogue yet, so other safe ideas are shown. You can add your own ${label} recipe.`;
+    }
+  }
+  if (plate?.carb && plate.carb !== 'other' && ok.length && !ok.some((e) => carbMatches(plate.carb!, e.recipe, st.ctx.foods))) {
+    const side = carbChoice(plate.carb)!.label.toLowerCase();
+    note = (note ? note + ' ' : '') + `None of the suitable ${plateMatched ? (plate.proteinFood ? st.ctx.foods.get(plate.proteinFood)?.name.toLowerCase() : plate.protein) + ' ' : ''}recipes come with ${side}, so the closest matches are shown.`;
+  }
+  return { evals, ok, note, plateMatched };
 }
 
 function issueText(okCount: number, evals: Evaluation[]): string {
@@ -317,16 +346,37 @@ function pickPartner(first: Recipe, ranked: Evaluation[]): Recipe | null {
   return null;
 }
 
+/**
+ * When the family has chosen the main food, both ideas share it, so the second idea differs
+ * in how it's cooked instead: different cuisine or side, and not too similar.
+ */
+function pickPlatePartner(first: Recipe, ranked: Evaluation[]): Recipe | null {
+  const rest = ranked.map((e) => e.recipe).filter((r) => r.id !== first.id);
+  const tiers: ((r: Recipe) => boolean)[] = [
+    (r) => similarity(first, r) < SIMILARITY_LIMIT && cuisineKey(r) !== cuisineKey(first),
+    (r) => similarity(first, r) < SIMILARITY_LIMIT,
+    () => true,
+  ];
+  for (const tier of tiers) {
+    const hit = rest.slice(0, 8).find(tier) ?? rest.find(tier);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 function pickForDay(index: number, st: PickState, exclude: Set<string>): DayPick {
-  const { evals, ok } = rank(index, st, exclude);
+  const { evals, ok, note, plateMatched } = rank(index, st, exclude);
   if (ok.length === 0) {
     // Allow repeats from elsewhere in the plan before giving up (never safety rules).
     return { options: [null, null], issue: issueText(0, evals) };
   }
   const a = ok[0].recipe;
-  const b = pickPartner(a, ok);
-  if (!b) return { options: [a.id, null], issue: issueText(1, evals) };
-  return { options: [a.id, b.id] };
+  const b = plateMatched ? pickPlatePartner(a, ok) : pickPartner(a, ok);
+  if (!b) {
+    const only = plateMatched ? `Only one recipe matches your chosen foods and suits everyone eating, so there's one idea for this day.` : issueText(1, evals);
+    return { options: [a.id, null], issue: note ? `${note} ${only}` : only };
+  }
+  return { options: [a.id, b.id], issue: note };
 }
 
 function makeState(days: PlanDay[], ctx: PlanContext, seed: number): PickState {
@@ -380,10 +430,11 @@ export function replaceOption(plan: MealPlan, index: number, slot: 0 | 1, ctx: P
   const rejected = current ? [...new Set([...day.rejected, current])] : day.rejected;
   const st = makeState(plan.days, ctx, plan.seed);
   const exclude = new Set([...rejected, ...(other ? [other] : [])]);
-  const { ok, evals } = rank(index, st, exclude);
+  const { ok, evals, plateMatched } = rank(index, st, exclude);
   const byId = st.byId;
   const otherRecipe = other ? byId.get(other) : undefined;
-  const choice = otherRecipe ? pickPartner(otherRecipe, ok.filter((e) => e.recipe.id !== otherRecipe.id)) : ok[0]?.recipe ?? null;
+  const partner = plateMatched ? pickPlatePartner : pickPartner;
+  const choice = otherRecipe ? partner(otherRecipe, ok.filter((e) => e.recipe.id !== otherRecipe.id)) : ok[0]?.recipe ?? null;
   if (!choice) {
     const reasons = explainExclusions(evals.filter((e) => !e.ok)).slice(0, 3);
     return {

@@ -101,7 +101,7 @@ export const COUNTRIES = [
 ];
 
 /** Recipes and catalogue are re-seeded when this number increases. */
-export const SEED_VERSION = 3;
+export const SEED_VERSION = 4;
 
 /** Format of stored data. 2 = takeaways, saved plans, 10 shop sections, day modes. */
 export const DATA_VERSION = 2;

@@ -13,6 +13,78 @@ Each feedback entry records:
 
 ---
 
+## 1.4.0 — Plan your plate: choose your foods first, find recipes second
+
+- **Feedback:** "Major meal planning workflow upgrade — Plan Your Plate: choose your foods first, discover your recipes second."
+
+- **Change:**
+  - **Build your week** (new page, `#build`): the main planning path, linked from Home and the planner. It has five steps.
+    1. **Days**: start date, number of days (7 by default) and people eating per day.
+    2. **Mains**: picture tiles with an animal for each meat (🐔 🐄 🐖 🐑 🦃 🦆), plus fish, salmon, tuna, prawns, seafood, eggs, vegetarian, vegan and other.
+       - Meats offer optional cuts and products: bacon, ham, sausages and chorizo are pork, for example.
+       - Takeaway night, Nothing planned and Not decided yet are available on every day.
+    3. **Sides**: weekly counts (e.g. rice ×2, pasta ×2, potatoes ×1) shared across the days.
+       - The same side is never used two days running.
+       - Main food and side pairs that have recipes are preferred.
+       - Each day can be set by hand, and tiles show how often each side is used.
+    4. **Veg**: choose the week's vegetables and share them across the days, or choose per day. Usage counts are shown.
+    5. **Recipes**: a plate overview for every day (Monday: Chicken | Rice | Broccoli | Carrots), then **✨ Find my recipes**.
+       - Two genuinely different ideas per day that use that day's main food, preferring the chosen side and vegetables.
+       - Each idea can be chosen, viewed, saved or shared, with kcal per serving shown.
+       - Per day: **New recipe for Tuesday**, Search, **Write my own with these foods**, and swap with the day before or after.
+       - If you've already chosen some dinners, it asks before replacing them.
+  - **Safety:** allergy, intolerance and diet rules are never relaxed. When no recipe with the chosen food suits everyone, the day explains why and shows other safe ideas.
+  - **Planner:**
+    - Each day shows its foods with **Edit foods**, a tile sheet for main food, side and vegetables.
+    - If no dinner is chosen, the ideas update immediately. A chosen dinner is never overwritten: you're asked whether to find new ideas or keep it.
+    - Days whose chosen dinner no longer matches their foods show a notice with **See matching recipes**.
+    - **Change › Ideas** shows "Based on your foods", a **New recipe for <day>** button and **Write a recipe with these foods**, which opens the recipe editor with those ingredients filled in.
+    - Moving or swapping a meal moves its foods with it.
+  - **Shopping list:** split into **Main shopping items** (proteins, sides and vegetables, plus foods chosen for plates) and **Additional recipe ingredients**, in both Shop and Full views.
+  - **Cupboard staples** (🧂 **Add cupboard items** on the shopping list):
+    - A suggested list: oils, salt, pepper, garlic, onions, flour, cornflour, sugar, honey, butter, stocks, herbs, spices, soy sauce, tomato purée, ketchup and vinegar.
+    - Each staple has a handling mode: usually have at home, add to every list, only add when running low, or don't add automatically.
+    - Each staple has a stock level: have plenty, running low, or need to buy.
+    - Staples to buy are tagged "cupboard". Staples at home are listed as "assumed at home this week". The list updates as you change them.
+    - Nothing changes until you set staples up.
+  - **Nutrition estimates:**
+    - A card on every recipe, per serving or for the whole recipe: energy, protein, carbohydrate, fat, fibre, saturates, sugars and salt.
+    - kcal per serving on planned days and suggestions.
+    - Calculated from the actual ingredient quantities, using a documented local table of typical values per 100 g (rounded from USDA FoodData Central and UK CoFID) with unit-to-gram conversions.
+    - All 83 recipes are fully covered. Foods without data are listed rather than guessed.
+    - Clearly labelled as estimates, with no medical advice.
+  - **Catalogue:**
+    - Six new recipes so common combinations have a match: creamy pork & broccoli pasta, pork meatball pasta, duck with potatoes & parsnips, beef & broccoli rice, sticky chicken drumsticks, salmon & pea pasta.
+    - Two new foods: pork mince and chicken drumsticks.
+
+- **Fixed while testing:** the shopping list button on Build your week opened an empty list. It now builds the list first.
+
+- **Knock-on effects:**
+  - The engine's ranking takes each day's foods into account. Days without chosen foods behave exactly as before.
+  - Saved weeks remember each day's foods.
+  - Existing plans and lists keep working: items without a group are treated as main items.
+
+- **Data:**
+  - New optional fields only: `PlanDay.plate`, `MealPlan.weekVeg`, `FoodPreferences.staples`, `ShoppingItem.kind` and `Food.nutrition`.
+  - The catalogue upgrade (seed version 4) adds the new foods and recipes without touching your own.
+  - Nothing existing is changed or removed.
+
+- **Tested:**
+  - 104 unit tests (24 new), covering:
+    - Matching chosen foods to recipes, and the engine's behaviour with chosen foods.
+    - Allergies with chosen foods, and households of 1 and 8.
+    - Sharing sides and vegetables, edits that never overwrite a chosen dinner, and swaps.
+    - Shopping groups, cupboard staple modes, nutrition maths and coverage, and the write-your-own draft.
+  - A new 21-step browser scenario (`npm run test:e2e:plate`), on a phone-sized screen:
+    - 5 days from Monday with chicken, beef, pork, duck and vegetarian; rice ×2, pasta ×2, potatoes ×1; broccoli, carrots, parsnips and peas.
+    - Find recipes, change Tuesday to chicken and get a new recipe, then change a chosen day's side and keep its dinner.
+    - Swap days, a takeaway night, and salmon with a fish allergy at the table.
+    - Split shopping list, the olive-oil staple behaviour, nutrition, write-your-own, and closing and reopening.
+    - Layouts at 390 px and 1280 px, and a partial plan with nothing chosen.
+  - All earlier suites still pass: 18 + 14 + 14 + 8 checks.
+
+---
+
 ## 1.3.0 — Your own recipes
 
 - **Feedback:** "Give me the option to add my own recipes. The ingredients should also be on the list. Beside all recipes add Own Recipes."

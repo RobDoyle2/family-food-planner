@@ -1,8 +1,9 @@
 // Editing operations for a meal plan. Each changes only what it must, so one evening
 // can be changed without disturbing the rest of the week.
-import type { DayMode, MealPlan, Member, PlanDay, Recipe, SavedPlanDay, TakeawayChoice } from '../types';
+import type { DayMode, MealPlan, Member, Plate, PlanDay, Recipe, SavedPlanDay, TakeawayChoice } from '../types';
 import { addDays } from './util';
-import { checkRecipeForDay, eatersFor, generateDays, type PlanContext } from './planner';
+import { checkRecipeForDay, eatersFor, generateDays, regenerateDay, type PlanContext } from './planner';
+import { plateFit } from './plate';
 
 export const PLAN_LENGTHS = [3, 5, 7, 10, 14];
 export const MAX_PLAN_DAYS = 31;
@@ -50,9 +51,9 @@ export function changeStart(plan: MealPlan, start: string): MealPlan {
   return { ...plan, startDate: start, days: plan.days.map((d, i) => ({ ...d, date: addDays(start, i) })) };
 }
 
-const MEAL_FIELDS = ['options', 'selected', 'rejected', 'issue', 'mode', 'takeaway'] as const;
+const MEAL_FIELDS = ['options', 'selected', 'rejected', 'issue', 'mode', 'takeaway', 'plate'] as const;
 type MealPart = Pick<PlanDay, (typeof MEAL_FIELDS)[number]>;
-const mealOf = (d: PlanDay): MealPart => ({ options: d.options, selected: d.selected, rejected: d.rejected, issue: d.issue, mode: d.mode, takeaway: d.takeaway });
+const mealOf = (d: PlanDay): MealPart => ({ options: d.options, selected: d.selected, rejected: d.rejected, issue: d.issue, mode: d.mode, takeaway: d.takeaway, plate: d.plate });
 
 /**
  * Moves the meal on one day to another day. If the other day already has a meal, the two swap.
@@ -119,7 +120,7 @@ export function toSavedDays(plan: MealPlan): SavedPlanDay[] {
     if (d.mode === 'takeaway') return { mode: 'takeaway', takeaway: d.takeaway };
     if (d.mode === 'none') return { mode: 'none' };
     const id = d.selected !== null ? d.options[d.selected] : null;
-    return id ? { mode: 'cook', recipeId: id } : { mode: 'cook' };
+    return { mode: 'cook', ...(id ? { recipeId: id } : {}), ...(d.plate ? { plate: d.plate } : {}) };
   });
 }
 
@@ -130,7 +131,7 @@ export function toSavedDays(plan: MealPlan): SavedPlanDay[] {
 export function daysFromSaved(saved: SavedPlanDay[], start: string, members: Member[], ctx: PlanContext, recipes: Map<string, Recipe>, seed: number): { days: PlanDay[]; skipped: string[] } {
   const skipped: string[] = [];
   const days = saved.map((s, i) => {
-    const d = blankDay(addDays(start, i), members);
+    const d: PlanDay = { ...blankDay(addDays(start, i), members), ...(s.plate ? { plate: s.plate } : {}) };
     if (s.mode !== 'cook') return { ...d, mode: s.mode, takeaway: s.takeaway };
     const r = s.recipeId ? recipes.get(s.recipeId) : undefined;
     if (!r) return d;
@@ -143,4 +144,40 @@ export function daysFromSaved(saved: SavedPlanDay[], start: string, members: Mem
   // Fill alternatives and any empty cooking days without touching the saved choices.
   const filled = generateDays(days, ctx, seed, true, true);
   return { days: filled, skipped };
+}
+
+/**
+ * Changes the foods chosen for one day. If no dinner is chosen yet, the ideas update to match
+ * straight away. A chosen dinner is never replaced here: the caller offers to find new recipes.
+ */
+export function applyPlate(plan: MealPlan, index: number, plate: Plate, ctx: PlanContext, recipes: Map<string, Recipe>): { plan: MealPlan; chosenStillFits: boolean } {
+  const day: PlanDay = { ...plan.days[index], plate, mode: plan.days[index].mode === 'none' ? 'cook' : plan.days[index].mode };
+  let next: MealPlan = { ...plan, days: plan.days.map((d, i) => (i === index ? day : d)) };
+  const chosen = chosenRecipe(day, recipes);
+  if (day.mode === 'cook' && !chosen) {
+    next = { ...next, days: next.days.map((d, i) => (i === index ? { ...regenerateDay(next, index, ctx).day, plate } : d)) };
+    return { plan: next, chosenStillFits: true };
+  }
+  const fit = chosen ? plateFit(plate, chosen, ctx.foods) : null;
+  return { plan: next, chosenStillFits: !fit || (fit.protein && fit.carb) };
+}
+
+/**
+ * "Find my recipes": fresh ideas for every cooking day without a chosen dinner, matched to its foods.
+ * With replaceChosen, days that already have a dinner get new ideas too (only after the family agrees).
+ */
+export function findRecipes(plan: MealPlan, ctx: PlanContext, replaceChosen = false): MealPlan {
+  const seed = plan.seed + 1;
+  const days = plan.days.map((d) => (replaceChosen && d.mode === 'cook' ? { ...d, rejected: [] } : d));
+  return { ...plan, seed, days: generateDays(days, ctx, seed, !replaceChosen) };
+}
+
+/** Days whose chosen dinner doesn't use the main food or side the family has since picked. */
+export function mismatchedDays(plan: MealPlan, recipes: Map<string, Recipe>, foods: PlanContext['foods']): number[] {
+  return plan.days.flatMap((d, i) => {
+    const r = chosenRecipe(d, recipes);
+    if (!r || !d.plate) return [];
+    const f = plateFit(d.plate, r, foods);
+    return f.protein && f.carb ? [] : [i];
+  });
 }

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { AppData, Category, Favourite, Food, FoodPreferences, FoodStatus, Household, MealPlan, Member, Recipe, SavedPlan, Settings, ShoppingList, ShoppingView, StoreName, TakeawayCategory, TakeawayPlace } from '../types';
+import type { AppData, Category, Favourite, Food, FoodPreferences, FoodStatus, Household, MealPlan, Member, Recipe, SavedPlan, Settings, ShoppingList, ShoppingView, StapleSetting, StoreName, TakeawayCategory, TakeawayPlace } from '../types';
 import { TAKEAWAY_CATEGORIES } from '../data/constants';
 import * as db from '../lib/db';
 import { seedData, upgradeCatalogue } from '../lib/backup';
@@ -92,6 +92,10 @@ export interface Store {
   deleteSavedPlan: (id: string) => Promise<void>;
   setShoppingView: (v: ShoppingView) => Promise<void>;
   saveList: (l: ShoppingList) => Promise<void>;
+  /** Sets how one cupboard staple is handled (null removes it from the cupboard). The list updates to match. */
+  setStaple: (foodId: string, setting: StapleSetting | null) => Promise<void>;
+  /** Replaces all cupboard staple settings at once. */
+  setStaples: (staples: Record<string, StapleSetting>) => Promise<void>;
   replaceAllData: (d: AppData) => Promise<void>;
   resetAll: () => Promise<void>;
 }
@@ -223,6 +227,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       favourites,
       recent: new Set(settings.recentRecipeIds),
       maxMinutes,
+      weekVeg: plan?.weekVeg ?? [],
     }),
 
     async saveHousehold(input) {
@@ -372,7 +377,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .map((l) => {
           const extras = (l.extraMeals ?? []).filter((e) => e.recipeId !== id);
           const plan = plans.find((p) => p.householdId === l.householdId) ?? d.mealPlans.find((p) => p.householdId === l.householdId) ?? null;
-          return { ...l, extraMeals: extras, items: mergeRegenerated(l, buildShoppingItems(plan, recipes, map, extras)), updatedAt: nowIso() };
+          const staples = d.preferences.find((p) => p.householdId === l.householdId)?.staples;
+          return { ...l, extraMeals: extras, items: mergeRegenerated(l, buildShoppingItems(plan, recipes, map, extras, { staples })), updatedAt: nowIso() };
         });
       await apply({
         recipes: { del: [id] },
@@ -442,6 +448,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     async saveList(l) {
       await apply({ shoppingLists: { put: [{ ...l, updatedAt: nowIso() }] } });
+    },
+
+    async setStaple(foodId, setting) {
+      const p = ensurePrefs();
+      const staples = { ...(p.staples ?? {}) };
+      if (setting) staples[foodId] = setting;
+      else delete staples[foodId];
+      await store.setStaples(staples);
+    },
+
+    async setStaples(staples) {
+      const { d, hid } = cur();
+      const p = ensurePrefs();
+      const changes: Changes = { preferences: { put: [{ ...p, staples, updatedAt: nowIso() }] } };
+      // Keep an existing shopping list in step with the cupboard (ticks and own items are kept).
+      const l = d.shoppingLists.find((x) => x.householdId === hid);
+      if (l) {
+        const planNow = d.mealPlans.find((x) => x.householdId === hid) ?? null;
+        const recipes = new Map(d.recipes.map((r) => [r.id, r]));
+        const items = mergeRegenerated(l, buildShoppingItems(planNow, recipes, toFoodMap(d.foods), l.extraMeals ?? [], { staples }));
+        changes.shoppingLists = { put: [{ ...l, items, updatedAt: nowIso() }] };
+      }
+      await apply(changes);
     },
 
     async replaceAllData(next) {

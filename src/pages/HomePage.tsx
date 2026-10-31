@@ -71,9 +71,20 @@ export default function HomePage() {
             {sum ? ` · ${sum.sorted} of ${sum.total} days sorted` : ''}.
           </p>
           <div className="hero-actions">
-            <button className="btn btn-primary btn-lg" onClick={() => go('planner')}>
-              {plan ? (sum && sum.open ? `📅 Choose ${plural(sum.open, 'dinner')}` : '📅 Open your plan') : '✨ Plan this week'}
-            </button>
+            {plan ? (
+              <button className="btn btn-primary btn-lg" onClick={() => go('planner')}>
+                {sum && sum.open ? `📅 Choose ${plural(sum.open, 'dinner')}` : '📅 Open your plan'}
+              </button>
+            ) : (
+              <button className="btn btn-primary btn-lg" onClick={() => go('build')}>
+                🍽 Build your week
+              </button>
+            )}
+            {plan && (
+              <button className="btn btn-secondary btn-lg" onClick={() => go('build')}>
+                🍽 Plan your plates
+              </button>
+            )}
             {stats.toBuy > 0 && (
               <button className="btn btn-secondary btn-lg" onClick={() => go('shopping')}>
                 🛒 {stats.toBuy} to buy

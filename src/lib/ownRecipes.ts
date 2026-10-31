@@ -4,6 +4,7 @@ import type { Difficulty, IngredientRole, Recipe, RecipeIngredient, Unit } from 
 import { lineage, type FoodMap } from './foods';
 import { refreshRecipe } from './recipes';
 import { uid } from './util';
+import { CARB_FOOD, PROTEIN_FOOD } from './plate';
 
 export interface RecipeDraft {
   name: string;
@@ -128,4 +129,20 @@ export function recipeFromDraft(d: RecipeDraft, foods: FoodMap, existing?: Recip
     createdAt: existing?.createdAt ?? new Date().toISOString(),
   };
   return refreshRecipe(base, foods);
+}
+
+/** A new-recipe draft that starts with the foods chosen for a day ("Write a recipe with these foods"). */
+export function draftFromPlate(plate: import('../types').Plate, recipes: Recipe[], foods: FoodMap, servings = 4): RecipeDraft {
+  const ids: string[] = [];
+  const main = plate.proteinFood ?? (plate.protein ? PROTEIN_FOOD[plate.protein] : undefined);
+  if (main && foods.has(main)) ids.push(main);
+  const side = plate.carb ? CARB_FOOD[plate.carb] : undefined;
+  if (side && foods.has(side)) ids.push(side);
+  plate.veg.filter((v) => foods.has(v)).forEach((v) => ids.push(v));
+  const ingredients = ids.map((foodId) => {
+    const use = typicalUse(foodId, recipes, foods);
+    return { foodId, amount: Math.round(((use.amount || 1) * servings) / 4), unit: use.unit, role: use.role };
+  });
+  const names = ids.map((id) => foods.get(id)!.name);
+  return { ...emptyDraft(), servings, name: names.length ? `${names[0]}${names[1] ? ' with ' + names.slice(1, 3).join(' and ').toLowerCase() : ''}` : '', ingredients };
 }

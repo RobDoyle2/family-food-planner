@@ -10,6 +10,7 @@ import ShoppingPage from './pages/ShoppingPage';
 import SettingsPage from './pages/SettingsPage';
 import SavedPage from './pages/SavedPage';
 import RecipeEditorPage from './pages/RecipeEditorPage';
+import BuildPage from './pages/BuildPage';
 
 const NAV = [
   { path: 'home', label: 'Home', icon: '🏡' },
@@ -37,7 +38,7 @@ function Shell() {
   const [route, navigate] = useHashRoute();
   const store = useStore();
   const [section, sub] = route;
-  const active = section === 'recipes' ? 'planner' : section === 'foods' ? 'family' : section === 'takeaways' ? 'saved' : section;
+  const active = section === 'recipes' || section === 'build' ? 'planner' : section === 'foods' ? 'family' : section === 'takeaways' ? 'saved' : section;
 
   let page;
   switch (section) {
@@ -65,6 +66,9 @@ function Shell() {
       break;
     case 'planner':
       page = <PlannerPage />;
+      break;
+    case 'build':
+      page = <BuildPage />;
       break;
     case 'recipes':
       page =

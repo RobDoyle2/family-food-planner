@@ -1,7 +1,7 @@
 {
   "name": "family-food-planner",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,8 @@
     "test:e2e": "node tests/e2e.cjs http://localhost:4173/",
     "test:e2e:extended": "node tests/e2e-extended.cjs http://localhost:4173/",
     "test:e2e:journeys": "node tests/e2e-journeys.cjs http://localhost:4173/",
-    "test:e2e:own": "node tests/e2e-own-recipes.cjs http://localhost:4173/"
+    "test:e2e:own": "node tests/e2e-own-recipes.cjs http://localhost:4173/",
+    "test:e2e:plate": "node tests/e2e-plate.cjs http://localhost:4173/"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -4187,3 +4187,564 @@ h1 {
 .times-grid label {
   font-size: 0.85rem;
 }
+
+/* ===================================================== Plan your plate (1.4) */
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+  margin: 10px 0 14px;
+}
+.tile-grid-sm {
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+}
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px 9px;
+  min-height: 104px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  color: var(--charcoal);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+.tile:hover {
+  border-color: var(--sage-300);
+}
+.tile:active {
+  transform: scale(0.97);
+}
+.tile:focus-visible {
+  outline: 3px solid var(--sage-500);
+  outline-offset: 2px;
+}
+.tile.on {
+  border-color: var(--forest);
+  box-shadow: 0 0 0 3px var(--sage-100);
+  background: var(--sage-50);
+}
+.tile-art {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  font-size: 2rem;
+  line-height: 1;
+}
+.tile-sm {
+  min-height: 88px;
+  padding: 8px 4px;
+}
+.tile-sm .tile-art {
+  width: 44px;
+  height: 44px;
+  font-size: 1.55rem;
+}
+.tile-label {
+  font-weight: 600;
+  font-size: 0.88rem;
+  text-align: center;
+  line-height: 1.2;
+}
+.tile-hint {
+  font-size: 0.72rem;
+  color: var(--ink-3);
+  text-align: center;
+}
+.tile-count {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--terracotta-100);
+  color: var(--terracotta-600);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.tile-tick {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--forest);
+  color: #fff;
+  font-size: 0.8rem;
+}
+.product-chips {
+  margin: 0 0 12px;
+}
+.product-chips .quick-picks {
+  margin-top: 6px;
+}
+.plate-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+.plate-chip {
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--sage-100);
+  color: var(--sage-700);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.plate-chip:first-child {
+  background: var(--terracotta-100);
+  color: var(--terracotta-600);
+}
+.day-plate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 10px;
+}
+.plate-preview {
+  margin: 4px 0 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--cream);
+}
+.based-on {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--sage-50);
+}
+.sheet-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.small-notice {
+  font-size: 0.88rem;
+  margin: 0 0 10px;
+}
+.warn-text {
+  color: var(--warn);
+}
+
+/* Build your week */
+.build-steps {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin: 0 0 14px;
+}
+.build-step-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 2px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.build-step-btn span:first-child {
+  font-size: 1.2rem;
+}
+.build-step-btn.done {
+  background: var(--sage-50);
+  color: var(--sage-700);
+}
+.build-step-btn.active {
+  background: var(--forest);
+  border-color: var(--forest);
+  color: #fff;
+}
+.build-step-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.build-step .card-title {
+  margin-bottom: 4px;
+}
+.build-days {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 2px 8px;
+  margin: 8px 0 4px;
+  scrollbar-width: thin;
+}
+.build-day {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 54px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  cursor: pointer;
+}
+.build-day.active {
+  border-color: var(--forest);
+  box-shadow: 0 0 0 2px var(--sage-300);
+  background: var(--sage-50);
+}
+.bd-dow {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.bd-sum {
+  font-size: 1.15rem;
+  min-height: 1.4em;
+}
+.build-day-h {
+  margin: 8px 0 0;
+  font-size: 1.05rem;
+}
+.build-sub {
+  margin: 20px 0 4px;
+  font-size: 1rem;
+}
+.build-day-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.people-days {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+}
+.people-day {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.pd-day {
+  font-weight: 600;
+}
+.carb-counts {
+  list-style: none;
+  margin: 10px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+@media (min-width: 680px) {
+  .carb-counts {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 16px;
+  }
+}
+.carb-count {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}
+.carb-count.on {
+  background: var(--sage-50);
+}
+.cc-art {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  font-size: 1.3rem;
+  flex: 0 0 auto;
+}
+.cc-name {
+  flex: 1;
+  font-weight: 600;
+}
+.find-btn {
+  width: 100%;
+  margin: 10px 0 12px;
+}
+.plate-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.plate-row {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.plate-row.mode-takeaway {
+  background: var(--terracotta-100);
+}
+.plate-row.mode-none {
+  background: var(--cream);
+}
+.plate-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pr-day {
+  font-weight: 700;
+  min-width: 88px;
+}
+.pr-foods {
+  flex: 1;
+  color: var(--ink-2);
+  font-size: 0.92rem;
+}
+.pr-move {
+  display: flex;
+  gap: 2px;
+}
+.pr-chosen {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  color: var(--good);
+}
+.pr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.suggestions {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.suggestion {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 4px 10px;
+  align-items: center;
+}
+.suggestion .idea-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.suggestion .idea-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+@media (min-width: 680px) {
+  .suggestion {
+    grid-template-columns: 64px 1fr auto;
+  }
+  .suggestion .idea-actions {
+    grid-column: auto;
+  }
+}
+.plate-overview {
+  margin-top: 16px;
+}
+.overview-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.overview-rows li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.overview-rows strong {
+  min-width: 36px;
+}
+.build-cta {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  background: linear-gradient(135deg, var(--sage-50), var(--cream));
+}
+.build-cta-art {
+  font-size: 2.2rem;
+  white-space: nowrap;
+}
+@media (max-width: 559px) {
+  .build-cta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-3);
+  font-size: 0.9rem;
+  margin: 18px 0;
+}
+.or-divider::before,
+.or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line-2);
+}
+
+/* Shopping groups and cupboard */
+.shop-group-h {
+  margin: 18px 0 6px;
+  font-size: 1.05rem;
+  font-family: var(--font-display);
+}
+.shop-group-h .count {
+  font-family: var(--font);
+  font-size: 0.85rem;
+  color: var(--ink-3);
+  margin-left: 4px;
+}
+.tag-cupboard {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--cream-2);
+  color: var(--ink-3);
+  font-size: 0.72rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+.cupboard-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 6px 0 10px;
+}
+.staples {
+  list-style: none;
+  margin: 8px 0 14px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.staple {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.staple.on-list {
+  border-color: var(--terracotta);
+  background: var(--terracotta-100);
+}
+.staple-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.staple-name {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.staple-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.cupboard-empty {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--cream);
+  margin: 8px 0 14px;
+}
+
+/* Nutrition */
+.nutrition-card .seg {
+  margin-bottom: 10px;
+}
+.nutrients {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  margin: 0 0 8px;
+}
+.nutrient {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nutrient dt {
+  font-size: 0.82rem;
+  color: var(--ink-3);
+}
+.nutrient dd {
+  margin: 0;
+  font-weight: 700;
+}
+.nutrient-kcal dd {
+  font-size: 1.2rem;
+}
+.nut-bar {
+  display: block;
+  height: 5px;
+  margin-top: 3px;
+  border-radius: 3px;
+  background: var(--cream-2);
+  overflow: hidden;
+}
+.nut-bar span {
+  display: block;
+  height: 100%;
+  background: var(--sage-500);
+}
+.plate-row-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 2px;
+}
+.pr-foods {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+@media (min-width: 680px) {
+  .plate-row-head {
+    grid-template-columns: 110px 1fr auto;
+  }
+  .pr-foods {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
